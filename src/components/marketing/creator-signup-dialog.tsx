@@ -37,7 +37,7 @@ const PLATFORMS = [
   "facebook",
 ] as const;
 
-const REFERRAL_CODE: string = "orca6566588";
+const REFERRAL_CODE: string = "orca353";
 
 const schema = z.object({
   publicEmail: z.string().trim().toLowerCase().email("Enter a valid email"),
