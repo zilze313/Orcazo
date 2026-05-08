@@ -2,7 +2,8 @@
 // Lists all campaigns from upstream (cached globally 60s — single-flight),
 // joined with the employee's applications so the UI knows whether to show
 // "Apply" or "Submit Post" per card.
-// Every monetary value is halved before delivery (50% platform commission).
+// Every monetary value is doubled before delivery (2× display rate).
+// Campaigns marked hidden in the CampaignVisibility table are excluded.
 
 import { withEmployee, ok } from '@/lib/api';
 import { fetchCampaigns, fetchApplications } from '@/lib/affiliatenetwork/client';
@@ -25,20 +26,20 @@ function num(v: unknown): number {
   return 0;
 }
 
-/** Apply 50% commission to every monetary field in a rates object. */
-function halveRates(rates: AnCampaignRates | undefined): AnCampaignRates | undefined {
+/** Double every monetary field in a rates object (2× display rate). */
+function doubleRates(rates: AnCampaignRates | undefined): AnCampaignRates | undefined {
   if (!rates) return rates;
 
   const standards = rates.standards
     ? {
         ...rates.standards,
-        base: num(rates.standards.base) / 2,
-        cap:  num(rates.standards.cap)  / 2,
+        base: num(rates.standards.base) * 2,
+        cap:  num(rates.standards.cap)  * 2,
       }
     : rates.standards;
 
   const range = rates.range
-    ? { min: num(rates.range.min) / 2, max: num(rates.range.max) / 2 }
+    ? { min: num(rates.range.min) * 2, max: num(rates.range.max) * 2 }
     : rates.range;
 
   // details: Record<platform, Record<language, AnPlatformLanguageRate>>
@@ -51,9 +52,9 @@ function halveRates(rates: AnCampaignRates | undefined): AnCampaignRates | undef
         const v = vals as AnPlatformLanguageRate;
         bucket[lang] = {
           ...v,
-          base: v.base != null ? num(v.base) / 2 : v.base,
-          cap:  v.cap  != null ? num(v.cap)  / 2 : v.cap,
-          cpm:  v.cpm  != null ? num(v.cpm)  / 2 : v.cpm,
+          base: v.base != null ? num(v.base) * 2 : v.base,
+          cap:  v.cap  != null ? num(v.cap)  * 2 : v.cap,
+          cpm:  v.cpm  != null ? num(v.cpm)  * 2 : v.cpm,
         };
       }
       details[platform] = bucket;
@@ -74,15 +75,17 @@ export const GET = withEmployee(async ({ req, session }) => {
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
   const pageSize = Math.min(60, Math.max(1, parseInt(url.searchParams.get('pageSize') || '24', 10)));
 
-  const [campaignsResp, appsResp, customRulesRows] = await Promise.all([
+  const [campaignsResp, appsResp, customRulesRows, hiddenRows] = await Promise.all([
     fetchCampaigns(session.affiliateNetworkToken, session.affiliateNetworkCookies),
     fetchApplications(session.affiliateNetworkToken, session.affiliateNetworkCookies),
     db.campaignRules.findMany({ select: { campaignPublicId: true, rulesHtml: true } }),
+    db.campaignVisibility.findMany({ where: { hidden: true }, select: { campaignPublicId: true } }),
   ]);
 
   const customRulesMap = new Map(customRulesRows.map((r) => [r.campaignPublicId, r.rulesHtml]));
+  const hiddenSet = new Set(hiddenRows.map((r) => r.campaignPublicId));
 
-  let campaigns = campaignsResp.campaigns ?? [];
+  let campaigns = (campaignsResp.campaigns ?? []).filter((c) => !hiddenSet.has(c.publicId));
   if (search) campaigns = campaigns.filter((c) => (c.name || '').toLowerCase().includes(search));
   campaigns.sort((a, b) => (Number(a.ordering ?? 9999)) - (Number(b.ordering ?? 9999)));
 
@@ -105,7 +108,7 @@ export const GET = withEmployee(async ({ req, session }) => {
     icon: c.icon,
     favorite: c.favorite,
     assetLinks: c.assetLinks ?? [],
-    rates: halveRates(c.rates),
+    rates: doubleRates(c.rates),
     // Extras for detail modal + card logic
     applyMode: c.applyMode ?? null,
     // Use admin-managed rules only; never expose upstream rules (URL or array)
@@ -115,8 +118,8 @@ export const GET = withEmployee(async ({ req, session }) => {
     approvalRate: c.approvalRate ?? null,
     dateEnd: c.dateEnd ?? null,
     inviteOnly: c.inviteOnly ?? false,
-    totalBudget:     c.totalBudget != null ? num(c.totalBudget) / 2 : null,
-    budgetRemaining: c.budgetRemaining != null ? num(c.budgetRemaining) / 2 : null,
+    totalBudget:     c.totalBudget != null ? num(c.totalBudget) * 2 : null,
+    budgetRemaining: c.budgetRemaining != null ? num(c.budgetRemaining) * 2 : null,
     applications: appsByCampaign.get(c.publicId) ?? [],
   }));
 

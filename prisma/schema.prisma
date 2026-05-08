@@ -261,6 +261,22 @@ model PayoutRequest {
   @@index([createdAt(sort: Desc)])
 }
 
+/// Admin-controlled visibility for upstream campaigns.
+/// If a campaign's publicId has a row with hidden=true it is stripped from
+/// every creator's campaign list.  Campaigns with no row (or hidden=false)
+/// are visible as normal.
+model CampaignVisibility {
+  id               String   @id @default(cuid())
+  campaignPublicId String   @unique
+  campaignName     String
+  hidden           Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@index([campaignPublicId])
+  @@index([hidden])
+}
+
 /// Admin-written announcements shown to creators on the Updates tab.
 model Announcement {
   id          String   @id @default(cuid())
