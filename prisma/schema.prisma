@@ -1,0 +1,262 @@
+// Startifye schema. Models the data Startifye owns; AffiliateNetwork remains
+// the source of truth for campaigns, earnings, posts.
+//
+// Two-email model:
+//   - publicEmail = what the creator sees and types at /login
+//   - proxyEmail  = email registered on AffiliateNetwork, owned by the admin.
+//     The OTP lands in admin's inbox; admin relays it to the creator.
+//   - The Allowlist row maps publicEmail → proxyEmail.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SignupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayoutMethod {
+  BANK
+  CRYPTO
+}
+
+enum PayoutStatus {
+  REQUESTED
+  IN_PROGRESS
+  PAID
+  CANCELLED
+}
+
+model Allowlist {
+  id                  String   @id @default(cuid())
+  // Public-facing email — what the creator types at /login.
+  // (Column name kept as `email` to avoid destructive rename; treated as publicEmail in code.)
+  email               String   @unique
+  // The email actually registered on AffiliateNetwork. Nullable until admin connects it.
+  proxyEmail          String?
+  proxyConnectedAt    DateTime?
+  note                String?
+  createdAt           DateTime @default(now())
+  createdBy           String?
+  createdByAdmin      Admin?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([proxyEmail])
+}
+
+/// Pool of AffiliateNetwork emails the admin owns. When approving a creator
+/// signup, admin picks one of these to "connect" to the creator's public email.
+model ManagedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model Employee {
+  id                       String              @id @default(cuid())
+  email                    String              @unique  // public email
+  affiliateNetworkToken    String
+  affiliateNetworkCookies  String?             @db.Text
+  affiliateNetworkPublicId String?
+  firstName                String?
+  lastName                 String?
+  bioVerificationCode      String?
+  cachedBalance            Decimal?            @db.Decimal(12, 2)
+  /// Most recent dashboard summary (cached for the payouts gate so we know
+  /// whether the creator has ≥ $10 awaiting payment without an extra upstream call).
+  cachedWaitingPayment     Decimal?            @db.Decimal(12, 2)
+  cachedWaitingReview      Decimal?            @db.Decimal(12, 2)
+  cachedSummaryAt          DateTime?
+  lastLoginAt              DateTime?
+  lastSyncedAt             DateTime?
+  createdAt                DateTime            @default(now())
+
+  sessions    Session[]
+  submissions SubmissionAudit[]
+  payouts     PayoutRequest[]
+
+  @@index([email])
+  @@index([lastLoginAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([firstName])
+  @@index([cachedBalance(sort: Desc)])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([employeeId])
+  @@index([expiresAt])
+}
+
+model Admin {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  sessions     AdminSession[]
+  allowlistEntries Allowlist[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model SubmissionAudit {
+  id                String   @id @default(cuid())
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  campaignPublicId  String
+  campaignName      String
+  linkSubmitted     String   @db.Text
+  upstreamStatus    Int
+  upstreamSuccess   Boolean
+  upstreamMessage   String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([campaignPublicId])
+  @@index([createdAt(sort: Desc)])
+  @@index([upstreamSuccess, createdAt(sort: Desc)])
+  @@index([campaignName])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Creator self-signup requests submitted from the public marketing site.
+/// On approval, an Allowlist row is created and a ManagedEmail is bound to it.
+model CreatorSignupRequest {
+  id                   String       @id @default(cuid())
+  publicEmail          String       @unique  // dedupes; one request per email
+  fullName             String
+  whatsapp             String
+  /// Array of { platform: 'tiktok'|'instagram'|..., handle: string }
+  socialAccounts       Json
+  status               SignupStatus @default(PENDING)
+  rejectionReason      String?
+  connectedProxyEmail  String?      // set when approved
+  createdAt            DateTime     @default(now())
+  reviewedAt           DateTime?
+  reviewedBy           String?
+  ipAddress            String?
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([publicEmail])
+}
+
+/// Brand inquiry submissions from the public marketing site.
+model BrandSignupRequest {
+  id            String    @id @default(cuid())
+  email         String
+  brandName     String
+  /// Free-text range, e.g. "$1k-$5k"
+  monthlyBudget String
+  createdAt     DateTime  @default(now())
+  contactedAt   DateTime?
+  contactedBy   String?
+  ipAddress     String?
+
+  @@index([createdAt(sort: Desc)])
+  @@index([contactedAt])
+  @@index([email])
+}
+
+/// A login-code relay request. Created when a creator hits /api/auth/send-code.
+/// Admin sees it, retrieves the OTP from the proxy inbox, pastes it here and
+/// clicks "Send code" — Resend delivers it to the creator's public email under
+/// Startifye branding, so the creator never sees the proxy email address.
+model LoginRequest {
+  id          String    @id @default(cuid())
+  publicEmail String
+  proxyEmail  String
+  status      String    @default("PENDING")  // PENDING | RELAYED | EXPIRED
+  createdAt   DateTime  @default(now())
+  relayedAt   DateTime?
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([publicEmail, createdAt(sort: Desc)])
+}
+
+/// Web-push subscription from an admin device (browser).
+/// Stored so the server can push notifications when new signups / login
+/// requests arrive. One row per browser session; uniqueness by endpoint.
+model AdminPushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String
+  createdAt DateTime @default(now())
+  lastUsed  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Admin-managed rules for campaigns. Completely replaces upstream rules so
+/// affiliatenetwork.com is never exposed to creators.
+model CampaignRules {
+  id               String   @id @default(cuid())
+  campaignPublicId String   @unique
+  campaignName     String
+  /// Rich-text HTML content written via the admin WYSIWYG editor.
+  rulesHtml        String   @default("") @db.Text
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@index([campaignPublicId])
+}
+
+/// Creator payout requests. Status workflow:
+///   REQUESTED → IN_PROGRESS → PAID  (or → CANCELLED at any point)
+model PayoutRequest {
+  id              String       @id @default(cuid())
+  employeeId      String
+  employee        Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  method          PayoutMethod
+  /// JSON details: bank ⇒ { iban, swift, holderName, bankName }; crypto ⇒ { network, address }
+  details         Json
+  /// Snapshot of totalWaitingPayment at request time (already halved for commission). For audit.
+  amountAtRequest Decimal      @db.Decimal(12, 2)
+  status          PayoutStatus @default(REQUESTED)
+  notes           String?      @db.Text
+  createdAt       DateTime     @default(now())
+  inProgressAt   DateTime?
+  paidAt         DateTime?
+  cancelledAt    DateTime?
+
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
