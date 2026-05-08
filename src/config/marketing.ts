@@ -5,7 +5,7 @@ export const MARKETING = {
   brandHero: {
     eyebrow: "Organic content marketing, at scale",
     heading: "The Supreme Platform For Affiliate Marketing",
-    sub: "Grow your brand with Orcazo’s network of over 150,000 creators across TikTok, Instagram, YouTube, X, Snapchat, and Facebook.",
+    sub: "Grow your brand with Orcazo’s network of over 255,000 creators across TikTok, Instagram, YouTube, X, Snapchat, and Facebook.",
   },
 
   creatorHero: {
