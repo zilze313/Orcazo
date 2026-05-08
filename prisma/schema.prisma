@@ -1,4 +1,4 @@
-// Startifye schema. Models the data Startifye owns; AffiliateNetwork remains
+// Orcazo schema. Models the data Orcazo owns; AffiliateNetwork remains
 // the source of truth for campaigns, earnings, posts.
 //
 // Two-email model:
@@ -197,7 +197,7 @@ model BrandSignupRequest {
 /// A login-code relay request. Created when a creator hits /api/auth/send-code.
 /// Admin sees it, retrieves the OTP from the proxy inbox, pastes it here and
 /// clicks "Send code" — Resend delivers it to the creator's public email under
-/// Startifye branding, so the creator never sees the proxy email address.
+/// Orcazo branding, so the creator never sees the proxy email address.
 model LoginRequest {
   id          String    @id @default(cuid())
   publicEmail String

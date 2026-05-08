@@ -1,19 +1,13 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 
 export function MarketingFooter() {
   return (
     <footer className="border-t bg-muted/20">
       <div className="container max-w-7xl px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
         <div className="col-span-2 md:col-span-1">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold tracking-tight text-base"
-          >
-            <span className="inline-flex w-7 h-7 rounded-md bg-primary text-primary-foreground items-center justify-center">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            Orcazo
+          <Link href="/" className="flex items-center gap-1">
+            <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
+            <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
           </Link>
           <p className="text-muted-foreground mt-3 max-w-xs leading-relaxed">
             The supreme platform for affiliate content marketing. Connect brands

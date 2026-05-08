@@ -13,7 +13,6 @@ import {
   Loader2,
   Menu,
   X,
-  Sparkles,
   Moon,
   Sun,
   Newspaper,
@@ -72,10 +71,8 @@ export function CreatorShell({
         )}
       >
         <div className="h-16 px-5 flex items-center gap-2 border-b">
-          <div className="h-8 w-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <span className="font-semibold tracking-tight">Orcazo</span>
+          <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
+          <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors md:flex"

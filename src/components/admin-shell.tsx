@@ -93,13 +93,9 @@ export function AdminShell({
         )}
       >
         <div className="h-16 px-5 flex items-center gap-2 border-b">
-          <div className="h-8 w-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
-            <ShieldCheck className="h-4 w-4" />
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="font-semibold tracking-tight">Orcazo</span>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Admin</span>
-          </div>
+          <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
+          <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Admin</span>
           <div className="ml-auto flex items-center gap-1">
             <AdminNotificationsBell />
             <button

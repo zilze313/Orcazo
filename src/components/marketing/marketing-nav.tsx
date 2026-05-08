@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -37,11 +37,9 @@ export function MarketingNav({
   return (
     <header className="sticky top-0 z-30 backdrop-blur bg-background/80 border-b">
       <div className="container max-w-7xl flex items-center h-16 px-4 gap-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-lg">
-          <span className="inline-flex w-7 h-7 rounded-md bg-primary text-primary-foreground items-center justify-center">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          Orcazo
+        <Link href="/" className="flex items-center gap-1">
+          <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
+          <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
         </Link>
 
         <nav className="hidden sm:flex items-center gap-5 text-sm">
