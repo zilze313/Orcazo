@@ -44,10 +44,16 @@ export const managedEmailAddBody = z.object({
 
 const SOCIAL_PLATFORMS = ['tiktok', 'instagram', 'youtube', 'snapchat', 'x', 'facebook'] as const;
 
+export const REFERRAL_CODE = 'orca6566588';
+
 export const creatorSignupBody = z.object({
   publicEmail: emailSchema,
   fullName:    z.string().trim().min(2, 'Please enter your full name').max(120),
   whatsapp:    z.string().trim().min(5, 'Enter a valid WhatsApp number').max(40),
+  referralCode: z.string().trim().refine(
+    (v) => v === REFERRAL_CODE,
+    { message: 'Invalid referral code' },
+  ),
   socialAccounts: z.array(z.object({
     platform: z.enum(SOCIAL_PLATFORMS),
     handle:   z.string().trim().min(1).max(80),

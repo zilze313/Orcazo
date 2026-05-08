@@ -16,10 +16,10 @@ export const MARKETING = {
 
   // Top-line stats shown on both pages
   stats: [
-    { label: "Creators on the network", value: "150,000+" },
-    { label: "Active monthly creators", value: "25,767" },
-    { label: "Views generated this year", value: "4.8B+" },
-    { label: "Paid out to creators", value: "$12M+" },
+    { label: "Creators on the network", value: "255,000+" },
+    { label: "Active monthly creators", value: "34,767" },
+    { label: "Views generated this year", value: "6.8B+" },
+    { label: "Paid out to creators", value: "$18M+" },
   ],
 
   // "Trusted by" ticker — feel free to swap in real client names once you have them

@@ -24,15 +24,58 @@ export function BrandHomepage() {
 
       {/* Hero */}
       <section className="relative overflow-hidden border-b">
+        {/* ── 3-D perspective grid ────────────────────────────────── */}
+        <div className="absolute inset-x-0 bottom-0 h-56 overflow-hidden pointer-events-none -z-10">
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `
+                linear-gradient(to right, hsl(199 80% 50% / 0.12) 1px, transparent 1px),
+                linear-gradient(to bottom, hsl(199 80% 50% / 0.12) 1px, transparent 1px)
+              `,
+              backgroundSize: '52px 52px',
+              transform: 'perspective(320px) rotateX(68deg)',
+              transformOrigin: 'center bottom',
+              maskImage: 'linear-gradient(to top, black 0%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to top, black 0%, transparent 100%)',
+            }}
+          />
+        </div>
+
+        {/* ── Dot texture ─────────────────────────────────────────── */}
         <div
-          className="absolute inset-0 -z-10 opacity-[0.04] pointer-events-none"
+          className="absolute inset-0 -z-10 opacity-[0.035] pointer-events-none"
           style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 20%, currentColor 1px, transparent 1px), radial-gradient(circle at 80% 60%, currentColor 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
+            backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
           }}
         />
-        <div className="container max-w-6xl px-4 pt-20 pb-24 sm:pt-28 sm:pb-32 text-center">
+
+        <div className="container max-w-6xl px-4 pt-20 pb-28 sm:pt-28 sm:pb-36 text-center relative">
+          {/* ── Floating stat cards (2xl only) ─────────────────────── */}
+          <HeroStatCard
+            value={MARKETING.stats[0].value}
+            label="Creator network"
+            rotation="-6deg"
+            delay="0s"
+            className="absolute left-0 top-[38%] -translate-y-1/2 hidden 2xl:block"
+          />
+          <HeroStatCard
+            value={MARKETING.stats[2].value}
+            label="Views this year"
+            rotation="7deg"
+            delay="1.4s"
+            className="absolute right-0 top-[35%] -translate-y-1/2 hidden 2xl:block"
+          />
+          <HeroStatCard
+            value="$0.18"
+            label="Avg. effective CPM"
+            rotation="4deg"
+            delay="0.7s"
+            className="absolute right-0 top-[62%] -translate-y-1/2 hidden 2xl:block"
+          />
+
           <span className="inline-flex items-center gap-2 rounded-full border bg-background/60 backdrop-blur px-3 py-1 text-xs text-muted-foreground mb-6">
             <Sparkles className="h-3 w-3" />
             {MARKETING.brandHero.eyebrow}
@@ -218,5 +261,30 @@ function Feature({
       <div className="font-semibold mb-2">{title}</div>
       <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
     </Card>
+  );
+}
+
+function HeroStatCard({
+  value, label, rotation, delay, className,
+}: {
+  value: string;
+  label: string;
+  rotation: string;
+  delay: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`pointer-events-none w-44 rounded-2xl border border-border/70 bg-background/70 px-5 py-4 shadow-2xl backdrop-blur-md ${className ?? ''}`}
+      style={{
+        ['--card-rot' as string]: rotation,
+        transform: `rotate(${rotation})`,
+        animation: `float-card 5s ease-in-out infinite`,
+        animationDelay: delay,
+      }}
+    >
+      <div className="text-2xl font-bold tabular-nums">{value}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
+    </div>
   );
 }

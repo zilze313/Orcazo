@@ -16,6 +16,7 @@ import {
   Sparkles,
   Moon,
   Sun,
+  Newspaper,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -24,11 +25,12 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
 const NAV = [
-  { href: "/campaigns", label: "Explore Campaigns", icon: Compass },
-  { href: "/my-campaigns", label: "My Campaigns", icon: Megaphone },
-  { href: "/dashboard", label: "Dashboard", icon: LineChart },
-  { href: "/social-accounts", label: "Social Media Accounts", icon: AtSign },
-  { href: "/payouts", label: "Payouts", icon: Wallet },
+  { href: "/campaigns",      label: "Explore Campaigns",    icon: Compass   },
+  { href: "/my-campaigns",   label: "My Campaigns",         icon: Megaphone },
+  { href: "/dashboard",      label: "Dashboard",            icon: LineChart },
+  { href: "/social-accounts",label: "Social Media Accounts",icon: AtSign    },
+  { href: "/payouts",        label: "Payouts",              icon: Wallet    },
+  { href: "/updates",        label: "Updates",              icon: Newspaper },
 ];
 
 export function CreatorShell({
