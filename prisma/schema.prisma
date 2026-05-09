@@ -162,6 +162,16 @@ model AdminAuditLog {
   @@index([createdAt(sort: Desc)])
 }
 
+/// Admin-created referral codes. Creators can enter one of these at signup.
+model ReferralCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([code])
+}
+
 /// Creator self-signup requests submitted from the public marketing site.
 /// On approval, an Allowlist row is created and a ManagedEmail is bound to it.
 model CreatorSignupRequest {
@@ -174,6 +184,7 @@ model CreatorSignupRequest {
   status               SignupStatus @default(PENDING)
   rejectionReason      String?
   connectedProxyEmail  String?      // set when approved
+  referralCode         String?      // optional code entered at signup
   createdAt            DateTime     @default(now())
   reviewedAt           DateTime?
   reviewedBy           String?

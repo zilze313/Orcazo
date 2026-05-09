@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   UserPlus, Search, CheckCircle2, XCircle, Clock, Loader2, ChevronDown, ChevronRight,
-  Trash2, Mail, MessageCircle,
+  Trash2, Mail, MessageCircle, Tag,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -40,6 +40,7 @@ interface SignupEntry {
   status: Status;
   rejectionReason: string | null;
   connectedProxyEmail: string | null;
+  referralCode: string | null;
   createdAt: string;
   reviewedAt: string | null;
 }
@@ -233,6 +234,14 @@ function SignupRow({
             <span>applied {formatRelative(entry.createdAt)}</span>
             <span>·</span>
             <span>{entry.socialAccounts.length} social{entry.socialAccounts.length === 1 ? '' : 's'}</span>
+            {entry.referralCode && (
+              <>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                  <Tag className="h-3 w-3" /> {entry.referralCode}
+                </span>
+              </>
+            )}
           </div>
           {open && (
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">

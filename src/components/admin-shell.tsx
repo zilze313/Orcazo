@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Building2, Wallet, AtSign,
-  LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid,
+  LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -42,6 +42,7 @@ const NAV = [
   { href: '/admin/campaigns',        label: 'Campaigns',        icon: LayoutGrid },
   { href: '/admin/campaign-rules',   label: 'Campaign Rules',   icon: BookOpen   },
   { href: '/admin/announcements',    label: 'Announcements',    icon: Megaphone  },
+  { href: '/admin/referral-codes',   label: 'Referral Codes',   icon: Tag        },
 ];
 
 export function AdminShell({

@@ -25,7 +25,13 @@ export async function POST(req: NextRequest) {
   const tsResult = await verifyTurnstile(parsed.data.turnstileToken, ip);
   if (!tsResult.ok) return fail(400, tsResult.error || 'Captcha failed', 'CAPTCHA_FAILED');
 
-  const { publicEmail, fullName, whatsapp, socialAccounts } = parsed.data;
+  const { publicEmail, fullName, whatsapp, socialAccounts, referralCode } = parsed.data;
+
+  // Validate referral code if provided
+  if (referralCode) {
+    const codeRow = await db.referralCode.findUnique({ where: { code: referralCode } });
+    if (!codeRow) return fail(400, 'Invalid referral code.', 'INVALID_REFERRAL_CODE');
+  }
 
   // If a previous submission exists, behavior depends on its status:
   //   - PENDING: silently update (user is editing their submission)
@@ -46,6 +52,7 @@ export async function POST(req: NextRequest) {
         fullName,
         whatsapp,
         socialAccounts: socialAccounts as object,
+        referralCode: referralCode || null,
         ipAddress: ip.slice(0, 64),
       },
     });
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest) {
       fullName,
       whatsapp,
       socialAccounts: socialAccounts as object,
+      referralCode: referralCode || null,
       ipAddress: ip.slice(0, 64),
     },
   });

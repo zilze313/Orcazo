@@ -51,16 +51,11 @@ const SOCIAL_PLATFORMS = [
   "facebook",
 ] as const;
 
-export const REFERRAL_CODE = "orca353";
-
 export const creatorSignupBody = z.object({
   publicEmail: emailSchema,
   fullName: z.string().trim().min(2, "Please enter your full name").max(120),
   whatsapp: z.string().trim().min(5, "Enter a valid WhatsApp number").max(40),
-  referralCode: z
-    .string()
-    .trim()
-    .refine((v) => v === REFERRAL_CODE, { message: "Invalid referral code" }),
+  referralCode: z.string().trim().max(50).optional(),
   socialAccounts: z
     .array(
       z.object({

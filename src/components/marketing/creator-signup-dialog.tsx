@@ -37,16 +37,11 @@ const PLATFORMS = [
   "facebook",
 ] as const;
 
-const REFERRAL_CODE: string = "orca353";
-
 const schema = z.object({
   publicEmail: z.string().trim().toLowerCase().email("Enter a valid email"),
   fullName: z.string().trim().min(2, "Full name is required").max(120),
   whatsapp: z.string().trim().min(5, "Enter a valid WhatsApp number").max(40),
-  referralCode: z
-    .string()
-    .trim()
-    .refine((v) => v === REFERRAL_CODE, { message: "Invalid referral code" }),
+  referralCode: z.string().trim().max(50).optional(),
   socialAccounts: z
     .array(
       z.object({
@@ -200,10 +195,13 @@ export function CreatorSignupDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="referralCode">Referral code</Label>
+                <Label htmlFor="referralCode">
+                  Referral code{" "}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
                 <Input
                   id="referralCode"
-                  placeholder="Enter your referral code"
+                  placeholder="e.g. sam123"
                   disabled={mutation.isPending}
                   {...form.register("referralCode")}
                 />
