@@ -4,9 +4,12 @@ import * as React from 'react';
 import Script from 'next/script';
 
 // Cloudflare Turnstile widget. Renders a small invisible/managed challenge.
-// Calls onToken(token) when the user passes the challenge. If the site key
-// isn't configured (env var missing), renders nothing and immediately resolves
-// so forms still submit.
+// Calls onToken(token) when the user passes the challenge.
+//
+// Race-condition fix: if the script is already loaded when this component
+// mounts (e.g. dialog closed and reopened, or script loaded before the dialog
+// opened), window.turnstile is already defined. We detect that on mount and
+// skip waiting for the onLoad event — which won't fire again for a cached script.
 
 declare global {
   interface Window {
@@ -39,32 +42,47 @@ export function TurnstileWidget({
 }) {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const widgetIdRef = React.useRef<string | null>(null);
-  const [loaded, setLoaded] = React.useState(false);
+  const [scriptReady, setScriptReady] = React.useState(false);
 
-  // If no site key, signal an immediate "no challenge needed" (pseudo-token).
-  // The server still calls verifyTurnstile() which also short-circuits when
-  // no secret key is configured, so the system is safe end-to-end.
+  // If no site key, fire an immediate pseudo-token so forms aren't blocked.
+  // The server's verifyTurnstile() also short-circuits when no secret is set.
   React.useEffect(() => {
-    if (!SITE_KEY) onToken('disabled');
-  }, [onToken]);
+    if (!SITE_KEY) { onToken('disabled'); return; }
+    // Script may already be loaded (dialog reopened / cached script):
+    // onLoad won't fire again, so detect turnstile presence immediately.
+    if (typeof window !== 'undefined' && window.turnstile) {
+      setScriptReady(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Render (or re-render) the widget whenever the script becomes ready.
   React.useEffect(() => {
-    if (!SITE_KEY || !loaded || !ref.current || !window.turnstile) return;
+    if (!SITE_KEY || !scriptReady || !ref.current || !window.turnstile) return;
+
+    // Remove any leftover widget from a previous mount
+    if (widgetIdRef.current) {
+      try { window.turnstile?.remove(widgetIdRef.current); } catch {}
+      widgetIdRef.current = null;
+    }
+
     const id = window.turnstile.render(ref.current, {
       sitekey: SITE_KEY,
-      callback: (token) => onToken(token),
-      'expired-callback': () => onToken(null),
-      'error-callback':   () => onToken(null),
+      callback:          (token) => onToken(token),
+      'expired-callback': ()      => onToken(null),
+      'error-callback':   ()      => onToken(null),
       theme: 'auto',
       size:  'normal',
     });
     widgetIdRef.current = id;
+
     return () => {
       if (widgetIdRef.current) {
         try { window.turnstile?.remove(widgetIdRef.current); } catch {}
+        widgetIdRef.current = null;
       }
     };
-  }, [loaded, onToken]);
+  }, [scriptReady, onToken]);
 
   if (!SITE_KEY) return null;
 
@@ -72,8 +90,9 @@ export function TurnstileWidget({
     <>
       <Script
         src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-        strategy="lazyOnload"
-        onLoad={() => setLoaded(true)}
+        strategy="afterInteractive"
+        onLoad={() => setScriptReady(true)}
+        onError={() => onToken('error')}
       />
       <div ref={ref} className={className} />
     </>

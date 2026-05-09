@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Building2, Wallet, AtSign,
-  LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag,
+  LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -19,6 +19,7 @@ interface BadgeCounts {
   brandSignups: number;
   payouts: number;
   loginRequests: number;
+  messages: number;
 }
 
 // Map each nav href to its badge key
@@ -27,6 +28,7 @@ const BADGE_KEY: Record<string, keyof BadgeCounts> = {
   '/admin/brand-signups':   'brandSignups',
   '/admin/payouts':         'payouts',
   '/admin/login-requests':  'loginRequests',
+  '/admin/messages':        'messages',
 };
 
 const NAV = [
@@ -43,6 +45,7 @@ const NAV = [
   { href: '/admin/campaign-rules',   label: 'Campaign Rules',   icon: BookOpen   },
   { href: '/admin/announcements',    label: 'Announcements',    icon: Megaphone  },
   { href: '/admin/referral-codes',   label: 'Referral Codes',   icon: Tag        },
+  { href: '/admin/messages',         label: 'Messages',         icon: MessageSquare },
 ];
 
 export function AdminShell({

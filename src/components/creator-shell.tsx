@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   Newspaper,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -29,7 +30,8 @@ const NAV = [
   { href: "/dashboard",      label: "Dashboard",            icon: LineChart },
   { href: "/social-accounts",label: "Social Media Accounts",icon: AtSign    },
   { href: "/payouts",        label: "Payouts",              icon: Wallet    },
-  { href: "/updates",        label: "Updates",              icon: Newspaper },
+  { href: "/updates",        label: "Updates",              icon: Newspaper      },
+  { href: "/support",        label: "Support",              icon: MessageCircle  },
 ];
 
 export function CreatorShell({
