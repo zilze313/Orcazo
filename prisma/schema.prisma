@@ -77,6 +77,13 @@ model Employee {
   cachedWaitingPayment     Decimal?            @db.Decimal(12, 2)
   cachedWaitingReview      Decimal?            @db.Decimal(12, 2)
   cachedSummaryAt          DateTime?
+  /// Raw upstream totals captured the first time this creator loads their
+  /// dashboard.  Used to zero-out pre-connection history so creators only see
+  /// activity from the day their account was connected.
+  baselineTotalPaid        Decimal?            @db.Decimal(14, 4)
+  baselineWaitingPayment   Decimal?            @db.Decimal(14, 4)
+  baselineWaitingReview    Decimal?            @db.Decimal(14, 4)
+  baselineCapturedAt       DateTime?
   lastLoginAt              DateTime?
   lastSyncedAt             DateTime?
   createdAt                DateTime            @default(now())

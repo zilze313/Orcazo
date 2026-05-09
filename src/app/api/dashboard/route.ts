@@ -6,10 +6,17 @@
 // summary totalPaid/totalWaitingPayment/totalWaitingReview) is halved before
 // being delivered to the browser. totalCount is a count, not money — pass it
 // through unmodified.
+//
+// Baseline isolation: only show data from the day the creator's proxy email was
+// connected. Items are filtered by time_submitted >= proxyConnectedAt; aggregate
+// totals are adjusted by subtracting a baseline snapshot captured on the
+// creator's first dashboard load.
 
 import { withEmployee, ok } from '@/lib/api';
 import { fetchDash } from '@/lib/affiliatenetwork/client';
 import { limits } from '@/lib/ratelimit';
+import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +31,13 @@ function num(v: unknown): number {
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+/** Convert a Prisma Decimal (or any stringify-able value) to a plain number. */
+function decNum(v: unknown): number {
+  if (v == null) return 0;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : 0;
 }
 
 function tsOrZero(v: string | null | undefined): number {
@@ -43,17 +57,56 @@ export const GET = withEmployee(async ({ req, session }) => {
   const sortParam = url.searchParams.get('sort') as SortKey | null;
   const sort: SortKey = sortParam && SORTS.includes(sortParam) ? sortParam : 'earnings';
 
-  const resp = await fetchDash(
-    session.affiliateNetworkToken,
-    { status, campaignName, onlySevenDays },
-    session.affiliateNetworkCookies,
-  );
+  const [resp, allowlistRow, employee] = await Promise.all([
+    fetchDash(
+      session.affiliateNetworkToken,
+      { status, campaignName, onlySevenDays },
+      session.affiliateNetworkCookies,
+    ),
+    db.allowlist.findUnique({
+      where: { email: session.email },
+      select: { proxyConnectedAt: true },
+    }),
+    db.employee.findUnique({
+      where: { id: session.employeeId },
+      select: {
+        baselineTotalPaid:      true,
+        baselineWaitingPayment: true,
+        baselineWaitingReview:  true,
+        baselineCapturedAt:     true,
+      },
+    }),
+  ]);
 
-  const all = resp.items ?? [];
+  // ── Lazy baseline capture ─────────────────────────────────────────────────
+  // On the creator's first dashboard load, store the raw upstream aggregate
+  // totals as a baseline. Future requests subtract this baseline so creators
+  // only see earnings accrued after their proxy email was connected.
+  if (employee && !employee.baselineCapturedAt) {
+    db.employee.update({
+      where: { id: session.employeeId },
+      data: {
+        baselineTotalPaid:      new Prisma.Decimal(String(num(resp.totalPaid))),
+        baselineWaitingPayment: new Prisma.Decimal(String(num(resp.totalWaitingPayment))),
+        baselineWaitingReview:  new Prisma.Decimal(String(num(resp.totalWaitingReview))),
+        baselineCapturedAt:     new Date(),
+      },
+    }).catch(() => {});
+  }
+
+  // ── Cutoff filter ─────────────────────────────────────────────────────────
+  // Hide any submission that was submitted before the proxy email was connected.
+  const cutoff = allowlistRow?.proxyConnectedAt ?? null;
+  const cutoffMs = cutoff ? cutoff.getTime() : 0;
+
+  const all = (resp.items ?? []).filter((item) => {
+    if (!cutoff) return true; // no cutoff set → show everything
+    const ts = tsOrZero(item.time_submitted);
+    return ts >= cutoffMs;
+  });
 
   // Sort BEFORE pagination so the user sees the highest-earning rows on page 1.
-  // Stable secondary sort by submitted-time desc keeps results predictable when
-  // many rows share the same value (e.g. earnings=0).
+  // Stable secondary sort by submitted-time desc keeps results predictable.
   all.sort((a, b) => {
     let primary = 0;
     switch (sort) {
@@ -79,12 +132,19 @@ export const GET = withEmployee(async ({ req, session }) => {
     earnings: num(i.earnings) / 2,
   }));
 
-  // Upstream summary fields. totalCount is a count; the rest are money.
+  // ── Baseline-adjusted summary totals ─────────────────────────────────────
+  // On first load (baseline not yet stored to DB), use the current upstream
+  // values as the effective baseline so the displayed totals start at zero.
+  const isFirstLoad = employee && !employee.baselineCapturedAt;
+  const bPaid    = isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid);
+  const bPayment = isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
+  const bReview  = isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview);
+
   const summary = {
-    totalCount:          resp.totalCount ?? total,
-    totalWaitingReview:  num(resp.totalWaitingReview)  / 2,
-    totalWaitingPayment: num(resp.totalWaitingPayment) / 2,
-    totalPaid:           num(resp.totalPaid)           / 2,
+    totalCount:          total,
+    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  / 2,
+    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) / 2,
+    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    / 2,
   };
 
   return ok({

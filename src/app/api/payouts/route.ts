@@ -2,6 +2,10 @@
 //                       saved payout details from last request (auto-fill) +
 //                       current waiting-payment amount (gates the request button)
 // POST /api/payouts  → create a new PayoutRequest (server enforces $10 minimum)
+//
+// Baseline isolation: payout history is filtered to entries on/after
+// proxyConnectedAt; waitingPayment is adjusted by subtracting the baseline
+// captured at first dashboard/payouts load.
 
 import { Prisma } from '@prisma/client';
 import { withEmployee, ok, parseBody, fail } from '@/lib/api';
@@ -25,12 +29,21 @@ function num(v: unknown): number {
   return 0;
 }
 
+/** Convert a Prisma Decimal (or any stringify-able value) to a plain number. */
+function decNum(v: unknown): number {
+  if (v == null) return 0;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export const GET = withEmployee(async ({ session }) => {
-  // Three things in parallel:
-  //   1. Upstream payout history (halved)
-  //   2. Live waiting-payment from upstream dash (halved)
-  //   3. Last saved payout details from our DB (for auto-fill)
-  const [payoutsResp, dashResp, lastReq] = await Promise.all([
+  // Five things in parallel:
+  //   1. Upstream payout history
+  //   2. Live waiting-payment from upstream dash
+  //   3. Last saved payout details (auto-fill)
+  //   4. Allowlist row (proxyConnectedAt cutoff)
+  //   5. Employee baseline fields
+  const [payoutsResp, dashResp, lastReq, allowlistRow, employee] = await Promise.all([
     fetchPayouts(session.affiliateNetworkToken, session.affiliateNetworkCookies).catch(() => null),
     fetchDash(
       session.affiliateNetworkToken,
@@ -41,29 +54,69 @@ export const GET = withEmployee(async ({ session }) => {
       where: { employeeId: session.employeeId },
       orderBy: { createdAt: 'desc' },
     }),
+    db.allowlist.findUnique({
+      where: { email: session.email },
+      select: { proxyConnectedAt: true },
+    }),
+    db.employee.findUnique({
+      where: { id: session.employeeId },
+      select: {
+        baselineTotalPaid:      true,
+        baselineWaitingPayment: true,
+        baselineWaitingReview:  true,
+        baselineCapturedAt:     true,
+      },
+    }),
   ]);
 
+  // ── Lazy baseline capture (if creator arrives here before the dashboard) ──
+  if (employee && !employee.baselineCapturedAt && dashResp != null) {
+    db.employee.update({
+      where: { id: session.employeeId },
+      data: {
+        baselineTotalPaid:      new Prisma.Decimal(String(num(dashResp.totalPaid))),
+        baselineWaitingPayment: new Prisma.Decimal(String(num(dashResp.totalWaitingPayment))),
+        baselineWaitingReview:  new Prisma.Decimal(String(num(dashResp.totalWaitingReview))),
+        baselineCapturedAt:     new Date(),
+      },
+    }).catch(() => {});
+  }
+
+  // ── Cutoff filter ─────────────────────────────────────────────────────────
+  const cutoff = allowlistRow?.proxyConnectedAt ?? null;
+  const cutoffMs = cutoff ? cutoff.getTime() : 0;
+
+  // Filter payout history to entries on/after the connection date.
   // Halve every monetary field; pass through the rest (id, status, dates, fee).
   // Fee is NOT halved per spec — fees aren't earnings, they're real costs.
-  const history = (payoutsResp?.payouts ?? []).map((p) => ({
-    id: p.id,
-    createdAt: p.createdAt,
-    updatedAt: p.updatedAt,
-    status: p.status,
-    paymentMethod: p.paymentMethod,
-    amountSubmitted: num(p.amountSubmitted) / 2,
-    fee:             p.fee != null ? num(p.fee) : null,
-    amountPaid:      p.amountPaid != null ? num(p.amountPaid) / 2 : null,
-    currency: p.currency,
-  }));
+  const history = (payoutsResp?.payouts ?? [])
+    .filter((p) => {
+      if (!cutoff) return true;
+      const ts = new Date(p.createdAt).getTime();
+      return Number.isFinite(ts) && ts >= cutoffMs;
+    })
+    .map((p) => ({
+      id: p.id,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      status: p.status,
+      paymentMethod: p.paymentMethod,
+      amountSubmitted: num(p.amountSubmitted) / 2,
+      fee:             p.fee != null ? num(p.fee) : null,
+      amountPaid:      p.amountPaid != null ? num(p.amountPaid) / 2 : null,
+      currency: p.currency,
+    }));
 
-  const waitingPayment = num(dashResp?.totalWaitingPayment) / 2;
+  // ── Baseline-adjusted waitingPayment ──────────────────────────────────────
+  const isFirstLoad = employee && !employee.baselineCapturedAt;
+  const bPayment = isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
+  const bReview  = isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview);
 
-  // Cache waiting-payment on the Employee row so other parts of the app can
-  // read it cheaply (we don't currently use this elsewhere, but it sets up the
-  // pattern for future server-side gates).
+  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
+
+  // Cache adjusted waiting-payment on the Employee row
   if (dashResp != null) {
-    const waitingReview = num(dashResp.totalWaitingReview) / 2;
+    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) / 2;
     db.employee.update({
       where: { id: session.employeeId },
       data: {
@@ -103,13 +156,23 @@ export const POST = withEmployee(async ({ req, session }) => {
   if ('errorResponse' in parsed) return parsed.errorResponse;
 
   // Pull live waiting-payment AT request time. Trust upstream over our cache.
-  const dashResp = await fetchDash(
-    session.affiliateNetworkToken,
-    { status: 'all', campaignName: 'all', onlySevenDays: false },
-    session.affiliateNetworkCookies,
-  ).catch(() => null);
+  // Also fetch employee baseline to correctly compute the adjusted amount.
+  const [dashResp, employee] = await Promise.all([
+    fetchDash(
+      session.affiliateNetworkToken,
+      { status: 'all', campaignName: 'all', onlySevenDays: false },
+      session.affiliateNetworkCookies,
+    ).catch(() => null),
+    db.employee.findUnique({
+      where: { id: session.employeeId },
+      select: { baselineWaitingPayment: true, baselineCapturedAt: true },
+    }),
+  ]);
 
-  const waitingPayment = num(dashResp?.totalWaitingPayment) / 2;
+  const isFirstLoad = employee && !employee.baselineCapturedAt;
+  const bPayment = isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
+  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
+
   if (waitingPayment < MIN_PAYOUT_USD) {
     return fail(400, `You need at least $${MIN_PAYOUT_USD} in awaiting payment to request a payout.`, 'BELOW_MIN');
   }
