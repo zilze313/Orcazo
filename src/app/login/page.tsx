@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +19,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+const RESEND_COOLDOWN = 60;
+
 const emailForm = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
 });
@@ -35,6 +37,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
 
   const emailHook = useForm<z.infer<typeof emailForm>>({
     resolver: zodResolver(emailForm),
@@ -45,6 +49,13 @@ export default function LoginPage() {
     resolver: zodResolver(codeForm),
     defaultValues: { code: "" },
   });
+
+  // Countdown tick
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   async function requestCode(values: z.infer<typeof emailForm>) {
     try {
@@ -60,11 +71,35 @@ export default function LoginPage() {
       }
       setEmail(values.email);
       setStep("code");
-      toast.success("Verification code sent. Ask your admin for the code.");
+      setCooldown(RESEND_COOLDOWN);
+      toast.success("Verification code sent. Please check your inbox");
     } catch {
       toast.error("Network error");
     }
   }
+
+  const resendCode = useCallback(async () => {
+    if (cooldown > 0 || resending) return;
+    setResending(true);
+    try {
+      const r = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        toast.error(data.error || "Could not resend code");
+        return;
+      }
+      setCooldown(RESEND_COOLDOWN);
+      toast.success("New code sent");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setResending(false);
+    }
+  }, [email, cooldown, resending]);
 
   async function verify(values: z.infer<typeof codeForm>) {
     try {
@@ -102,7 +137,7 @@ export default function LoginPage() {
           </CardTitle>
           <CardDescription>
             {step === "email"
-              ? "Use the email your admin assigned you. A verification code will be sent — your admin will share it with you."
+              ? "Use the email your admin assigned you. A verification code will be sent to your inbox."
               : `We sent a code to ${email}.`}
           </CardDescription>
         </CardHeader>
@@ -141,7 +176,7 @@ export default function LoginPage() {
               <p className="text-xs text-center text-muted-foreground pt-1">
                 Don&apos;t have an account?{" "}
                 <a
-                  href="/creators"
+                  href="/auth?tab=signup"
                   className="text-foreground font-medium underline-offset-4 hover:underline"
                 >
                   Apply as a creator
@@ -161,6 +196,7 @@ export default function LoginPage() {
                   autoComplete="one-time-code"
                   maxLength={8}
                   placeholder="123456"
+                  autoFocus
                   disabled={codeHook.formState.isSubmitting}
                   {...codeHook.register("code")}
                 />
@@ -179,6 +215,16 @@ export default function LoginPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
                 Verify and continue
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={resendCode}
+                disabled={cooldown > 0 || resending || codeHook.formState.isSubmitting}
+              >
+                {resending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {cooldown > 0 ? `Resend code (${cooldown}s)` : "Resend code"}
               </Button>
               <Button
                 type="button"

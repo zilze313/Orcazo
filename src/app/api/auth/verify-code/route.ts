@@ -65,6 +65,13 @@ export async function POST(req: NextRequest) {
 
   const upstreamToken = upstreamData.user.token;
 
+  // Look up creator signup request for preferred name (fullName takes priority
+  // over the upstream affiliate-network profile's personal fields).
+  const signupReq = await db.creatorSignupRequest.findUnique({
+    where: { publicEmail },
+    select: { fullName: true },
+  }).catch(() => null);
+
   // Phase 1: persist the Employee row keyed by publicEmail.
   let employee;
   try {
@@ -105,12 +112,30 @@ export async function POST(req: NextRequest) {
 
     if (p?.bioVerificationCode) {
       const balance = p.balance;
+
+      // Prefer the name the creator entered in their signup form.
+      let firstName: string | undefined;
+      let lastName: string | undefined;
+      if (signupReq?.fullName) {
+        const trimmed = signupReq.fullName.trim();
+        const spaceIdx = trimmed.indexOf(' ');
+        if (spaceIdx > 0) {
+          firstName = trimmed.slice(0, spaceIdx);
+          lastName  = trimmed.slice(spaceIdx + 1).trim() || undefined;
+        } else {
+          firstName = trimmed;
+        }
+      } else {
+        firstName = p.personal?.firstName ?? undefined;
+        lastName  = p.personal?.lastName  ?? undefined;
+      }
+
       await db.employee.update({
         where: { id: employee.id },
         data: {
           affiliateNetworkPublicId: p.publicId ?? undefined,
-          firstName:                p.personal?.firstName ?? undefined,
-          lastName:                 p.personal?.lastName ?? undefined,
+          firstName,
+          lastName,
           bioVerificationCode:      p.bioVerificationCode,
           cachedBalance:            balance ? new Prisma.Decimal(balance) : undefined,
           lastSyncedAt:             new Date(),
@@ -127,6 +152,11 @@ export async function POST(req: NextRequest) {
 
   pruneExpiredSessions().catch(() => {});
   ensureAdminBootstrap().catch(() => {});
+
+  // Clear any pending OTP from the inbound email relay (fire-and-forget)
+  db.allowlist
+    .updateMany({ where: { email: publicEmail }, data: { pendingOtp: null, pendingOtpAt: null } })
+    .catch(() => {});
 
   log.info('auth.login_ok', { employeeId: employee.id, publicEmail });
   return ok({ ok: true, signupStatus: upstreamData.user.signupStatus });

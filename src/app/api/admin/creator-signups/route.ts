@@ -1,4 +1,4 @@
-// GET /api/admin/creator-signups?status=&search=&page=&pageSize=
+// GET /api/admin/creator-signups?status=&search=&referralCode=&page=&pageSize=
 //   status: all | PENDING | APPROVED | REJECTED
 
 import { z } from 'zod';
@@ -10,10 +10,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
-  search:   z.string().trim().max(100).optional(),
-  status:   z.enum(['all', 'PENDING', 'APPROVED', 'REJECTED']).default('all'),
-  page:     z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  search:       z.string().trim().max(100).optional(),
+  status:       z.enum(['all', 'PENDING', 'APPROVED', 'REJECTED']).default('all'),
+  referralCode: z.string().trim().max(50).optional(),
+  page:         z.coerce.number().int().min(1).default(1),
+  pageSize:     z.coerce.number().int().min(1).max(100).default(25),
 });
 
 export const GET = withAdmin(async ({ req }) => {
@@ -22,10 +23,11 @@ export const GET = withAdmin(async ({ req }) => {
   if (!parsed.success) {
     return ok({ entries: [], pagination: { page: 1, pageSize: 25, total: 0, totalPages: 1 } });
   }
-  const { search, status, page, pageSize } = parsed.data;
+  const { search, status, referralCode, page, pageSize } = parsed.data;
 
   const where: Prisma.CreatorSignupRequestWhereInput = {
     ...(status !== 'all' ? { status: status as SignupStatus } : {}),
+    ...(referralCode ? { referralCode: { equals: referralCode, mode: 'insensitive' } } : {}),
     ...(search ? {
       OR: [
         { publicEmail: { contains: search, mode: 'insensitive' } },

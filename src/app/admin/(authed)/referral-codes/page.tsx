@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Trash2, Loader2, Users } from 'lucide-react';
+import { Tag, Plus, Trash2, Loader2, Users, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -12,6 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { api } from '@/lib/api-client';
 import { formatRelative } from '@/lib/utils';
 
@@ -25,11 +31,103 @@ interface ReferralCodeEntry {
 
 interface ListResp { codes: ReferralCodeEntry[] }
 
+interface SignupEntry {
+  id: string;
+  fullName: string;
+  publicEmail: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+}
+interface SignupsResp { entries: SignupEntry[] }
+
+function SignupStatusBadge({ status }: { status: SignupEntry['status'] }) {
+  if (status === 'APPROVED') return (
+    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+      <CheckCircle2 className="h-3 w-3" /> Approved
+    </span>
+  );
+  if (status === 'REJECTED') return (
+    <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+      <XCircle className="h-3 w-3" /> Rejected
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <Clock className="h-3 w-3" /> Pending
+    </span>
+  );
+}
+
+function SignupsModal({
+  code,
+  open,
+  onClose,
+}: {
+  code: ReferralCodeEntry | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useQuery<SignupsResp>({
+    queryKey: ['admin', 'creator-signups', 'by-code', code?.code],
+    queryFn: () =>
+      api.get<SignupsResp>(
+        `/api/admin/creator-signups?referralCode=${encodeURIComponent(code!.code)}&pageSize=100`,
+      ),
+    enabled: open && !!code,
+    staleTime: 30_000,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            Signups via <span className="font-mono">{code?.code}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+          {isLoading ? (
+            <div className="space-y-2 py-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-12" />
+              ))}
+            </div>
+          ) : (data?.entries.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No signups have used this code yet.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {data!.entries.map((s) => (
+                <li key={s.id} className="py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{s.fullName}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.publicEmail}</div>
+                  </div>
+                  <div className="flex-shrink-0 flex flex-col items-end gap-0.5">
+                    <SignupStatusBadge status={s.status} />
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {formatRelative(s.createdAt)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ReferralCodesPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = React.useState(false);
   const [codeInput, setCodeInput] = React.useState('');
   const [noteInput, setNoteInput] = React.useState('');
+  const [selectedCode, setSelectedCode] = React.useState<ReferralCodeEntry | null>(null);
 
   const { data, isLoading } = useQuery<ListResp>({
     queryKey: ['admin', 'referral-codes'],
@@ -153,9 +251,19 @@ export default function ReferralCodesPage() {
                       <span>·</span>
                       <span className="inline-flex items-center gap-1">
                         <Users className="h-3 w-3" />
-                        <Badge variant={c.usageCount > 0 ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0">
-                          {c.usageCount} signup{c.usageCount === 1 ? '' : 's'}
-                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCode(c)}
+                          className="focus:outline-none"
+                          title="View signups for this code"
+                        >
+                          <Badge
+                            variant={c.usageCount > 0 ? 'secondary' : 'outline'}
+                            className={`text-[10px] px-1.5 py-0 ${c.usageCount > 0 ? 'cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors' : ''}`}
+                          >
+                            {c.usageCount} signup{c.usageCount === 1 ? '' : 's'}
+                          </Badge>
+                        </button>
                       </span>
                     </div>
                   </div>
@@ -181,6 +289,12 @@ export default function ReferralCodesPage() {
           )}
         </Card>
       </div>
+
+      <SignupsModal
+        code={selectedCode}
+        open={!!selectedCode}
+        onClose={() => setSelectedCode(null)}
+      />
     </>
   );
 }

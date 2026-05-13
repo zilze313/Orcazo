@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, Search, ArrowUpDown, ArrowDown, ArrowUp } from "lucide-react";
+import { Users, Search, ArrowUpDown, ArrowDown, ArrowUp, History } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { PaginationBar } from "@/components/pagination-bar";
@@ -30,6 +31,7 @@ interface Employee {
   cachedBalance: string | null;
   cachedWaitingPayment: string | null;
   cachedWaitingReview: string | null;
+  showFullHistory: boolean;
   lastSyncedAt: string | null;
   createdAt: string;
 }
@@ -54,7 +56,7 @@ type SortField =
 const COLUMNS: Array<{
   field: SortField | null;
   label: string;
-  align?: "right";
+  align?: "right" | "center";
 }> = [
   { field: "email", label: "Email" },
   { field: "firstName", label: "Name" },
@@ -62,12 +64,14 @@ const COLUMNS: Array<{
   { field: "cachedBalance", label: "Paid", align: "right" },
   { field: "cachedWaitingPayment", label: "Awaiting payment", align: "right" },
   { field: null, label: "Awaiting review", align: "right" },
+  { field: null, label: "Full history", align: "center" },
   { field: "createdAt", label: "Joined" },
 ];
 
 export default function AdminEmployeesPage() {
   const router = useRouter();
   const params = useSearchParams();
+  const queryClient = useQueryClient();
 
   const search = params.get("search") ?? "";
   const sort = (params.get("sort") as SortField) ?? "createdAt";
@@ -75,6 +79,8 @@ export default function AdminEmployeesPage() {
   const page = Math.max(1, parseInt(params.get("page") || "1", 10));
 
   const [searchInput, setSearchInput] = React.useState(search);
+  // Track which employee IDs are currently being toggled
+  const [toggling, setToggling] = React.useState<Record<string, boolean>>({});
 
   // Debounce search input → URL
   React.useEffect(() => {
@@ -89,8 +95,10 @@ export default function AdminEmployeesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
+  const queryKey = ["admin", "employees", search, sort, order, page];
+
   const list = useQuery<ListResp>({
-    queryKey: ["admin", "employees", search, sort, order, page],
+    queryKey,
     queryFn: () => {
       const u = new URLSearchParams({
         page: String(page),
@@ -120,6 +128,47 @@ export default function AdminEmployeesPage() {
     const u = new URLSearchParams(params);
     u.set("page", String(p));
     router.replace(`/admin/employees?${u.toString()}`, { scroll: false });
+  };
+
+  const toggleFullHistory = async (employee: Employee) => {
+    const next = !employee.showFullHistory;
+    setToggling((t) => ({ ...t, [employee.id]: true }));
+
+    // Optimistic update
+    queryClient.setQueryData<ListResp>(queryKey, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        employees: old.employees.map((e) =>
+          e.id === employee.id ? { ...e, showFullHistory: next } : e
+        ),
+      };
+    });
+
+    try {
+      await fetch(`/api/admin/employees/${employee.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showFullHistory: next }),
+      });
+    } catch {
+      // Revert on error
+      queryClient.setQueryData<ListResp>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          employees: old.employees.map((e) =>
+            e.id === employee.id ? { ...e, showFullHistory: !next } : e
+          ),
+        };
+      });
+    } finally {
+      setToggling((t) => {
+        const copy = { ...t };
+        delete copy[employee.id];
+        return copy;
+      });
+    }
   };
 
   return (
@@ -165,7 +214,7 @@ export default function AdminEmployeesPage() {
                   {COLUMNS.map((col) => (
                     <TableHead
                       key={col.label}
-                      className={`whitespace-nowrap ${col.align === "right" ? "text-right" : ""}`}
+                      className={`whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}
                     >
                       {col.field ? (
                         <button
@@ -208,6 +257,25 @@ export default function AdminEmployeesPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
                       {e.cachedWaitingReview ? `$${e.cachedWaitingReview}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button
+                        onClick={() => toggleFullHistory(e)}
+                        disabled={!!toggling[e.id]}
+                        title={
+                          e.showFullHistory
+                            ? "Full history on — click to restore baseline isolation"
+                            : "Baseline isolation on — click to show full history"
+                        }
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-colors disabled:opacity-50 ${
+                          e.showFullHistory
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        <History className="h-3 w-3" />
+                        {e.showFullHistory ? "Full" : "Isolated"}
+                      </button>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(e.createdAt).toLocaleDateString()}

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Users, ShieldCheck, FileText, Activity, Sparkles, AlertTriangle, Clock,
+  Users, ShieldCheck, FileText, Activity, Sparkles, AlertTriangle, Clock, DollarSign,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -19,6 +19,12 @@ interface StatsResp {
   submissions7d: number;
   submissionsFailed7d: number;
   activeSessions: number;
+  totalEarnings: number;
+  totalEarningsBreakdown: {
+    paid: number;
+    awaitingPayment: number;
+    awaitingReview: number;
+  };
   recentSubmissions: Array<{
     id: string;
     campaignName: string;
@@ -55,6 +61,49 @@ export default function AdminDashboardPage() {
           <StatCard icon={Activity}       label="Submissions (7d)"  value={stats.data?.submissions7d}  loading={stats.isLoading} tone="muted" />
           <StatCard icon={AlertTriangle}  label="Failed (7d)"       value={stats.data?.submissionsFailed7d} loading={stats.isLoading} tone={(stats.data?.submissionsFailed7d ?? 0) > 0 ? 'warning' : 'muted'} />
         </div>
+
+        {/* Earnings breakdown */}
+        <Card className="p-5">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-3">
+            <DollarSign className="h-4 w-4" />
+            Total creator earnings (all users, all time)
+          </div>
+          {stats.isLoading ? (
+            <div className="flex gap-6">
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-6">
+              <div>
+                <div className="text-2xl font-semibold tabular-nums">
+                  ${(stats.data?.totalEarnings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Total combined</div>
+              </div>
+              <div className="w-px bg-border self-stretch hidden sm:block" />
+              <div>
+                <div className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-400">
+                  ${(stats.data?.totalEarningsBreakdown.paid ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Paid out</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                  ${(stats.data?.totalEarningsBreakdown.awaitingPayment ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Awaiting payment</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold tabular-nums text-yellow-600 dark:text-yellow-400">
+                  ${(stats.data?.totalEarningsBreakdown.awaitingReview ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Awaiting review</div>
+              </div>
+            </div>
+          )}
+        </Card>
 
         <Card className="p-5">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">

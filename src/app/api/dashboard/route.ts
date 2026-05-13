@@ -74,6 +74,7 @@ export const GET = withEmployee(async ({ req, session }) => {
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
         baselineCapturedAt:     true,
+        showFullHistory:        true,
       },
     }),
   ]);
@@ -96,11 +97,13 @@ export const GET = withEmployee(async ({ req, session }) => {
 
   // ── Cutoff filter ─────────────────────────────────────────────────────────
   // Hide any submission that was submitted before the proxy email was connected.
-  const cutoff = allowlistRow?.proxyConnectedAt ?? null;
+  // Bypassed when admin has enabled showFullHistory for this creator.
+  const showFull = employee?.showFullHistory ?? false;
+  const cutoff   = showFull ? null : (allowlistRow?.proxyConnectedAt ?? null);
   const cutoffMs = cutoff ? cutoff.getTime() : 0;
 
   const all = (resp.items ?? []).filter((item) => {
-    if (!cutoff) return true; // no cutoff set → show everything
+    if (!cutoff) return true; // no cutoff set, or full history enabled → show everything
     const ts = tsOrZero(item.time_submitted);
     return ts >= cutoffMs;
   });
@@ -133,12 +136,12 @@ export const GET = withEmployee(async ({ req, session }) => {
   }));
 
   // ── Baseline-adjusted summary totals ─────────────────────────────────────
-  // On first load (baseline not yet stored to DB), use the current upstream
-  // values as the effective baseline so the displayed totals start at zero.
-  const isFirstLoad = employee && !employee.baselineCapturedAt;
-  const bPaid    = isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid);
-  const bPayment = isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
-  const bReview  = isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview);
+  // showFull → no subtraction (baseline = 0, show raw upstream / 2).
+  // First load → use current upstream as baseline so totals start at zero.
+  const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
+  const bPaid    = showFull ? 0 : (isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid));
+  const bPayment = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
+  const bReview  = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
   const summary = {
     totalCount:          total,

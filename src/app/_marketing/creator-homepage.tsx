@@ -1,13 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { ArrowRight, DollarSign, Clock, Trophy, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { MarketingNav } from '@/components/marketing/marketing-nav';
 import { MarketingFooter } from '@/components/marketing/marketing-footer';
-import { CreatorSignupDialog } from '@/components/marketing/creator-signup-dialog';
-import { LoginDialog } from '@/components/marketing/login-dialog';
 import { FadeIn } from '@/components/fade-in';
 import { MARKETING } from '@/config/marketing';
 import { PlatformIcon } from '@/components/platform-icon';
@@ -15,16 +14,9 @@ import { PlatformIcon } from '@/components/platform-icon';
 const PLATFORMS = ['tiktok', 'instagram', 'youtube', 'snapchat', 'x', 'facebook'] as const;
 
 export function CreatorHomepage() {
-  const [signupOpen, setSignupOpen] = React.useState(false);
-  const [loginOpen, setLoginOpen] = React.useState(false);
-
   return (
     <div className="flex flex-col min-h-screen">
-      <MarketingNav
-        variant="creator"
-        onPrimaryCta={() => setSignupOpen(true)}
-        onLoginCta={() => setLoginOpen(true)}
-      />
+      <MarketingNav />
 
       {/* Hero */}
       <section className="relative overflow-hidden border-b">
@@ -92,11 +84,13 @@ export function CreatorHomepage() {
               {MARKETING.creatorHero.sub}
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-              <Button size="lg" onClick={() => setSignupOpen(true)}>
-                Sign up <ArrowRight className="h-4 w-4" />
+              <Button size="lg" asChild>
+                <Link href="/auth?tab=signup">
+                  Apply now <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setLoginOpen(true)}>
-                Log in
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/auth">Sign in</Link>
               </Button>
             </div>
             <div className="mt-10 flex items-center justify-center gap-2 text-muted-foreground text-sm">
@@ -204,20 +198,15 @@ export function CreatorHomepage() {
           </span>
           <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">{MARKETING.creatorCta.heading}</h2>
           <p className="mt-3 text-primary-foreground/80 max-w-xl mx-auto">{MARKETING.creatorCta.sub}</p>
-          <Button size="lg" variant="secondary" className="mt-7" onClick={() => setSignupOpen(true)}>
-            Apply now <ArrowRight className="h-4 w-4" />
+          <Button size="lg" variant="secondary" className="mt-7" asChild>
+            <Link href="/auth?tab=signup">
+              Apply now <ArrowRight className="h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </section>
 
       <MarketingFooter />
-
-      <CreatorSignupDialog open={signupOpen} onOpenChange={setSignupOpen} />
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSwitchToSignup={() => { setLoginOpen(false); setSignupOpen(true); }}
-      />
     </div>
   );
 }

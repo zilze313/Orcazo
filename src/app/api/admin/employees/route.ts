@@ -57,6 +57,7 @@ export const GET = withAdmin(async ({ req }) => {
         cachedBalance: true,
         cachedWaitingPayment: true,
         cachedWaitingReview: true,
+        showFullHistory: true,
         lastSyncedAt: true,
         createdAt: true,
       },

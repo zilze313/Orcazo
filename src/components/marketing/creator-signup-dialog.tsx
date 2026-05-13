@@ -46,7 +46,12 @@ const schema = z.object({
     .array(
       z.object({
         platform: z.enum(PLATFORMS),
-        handle: z.string().trim().min(1, "Handle required").max(80),
+        handle: z.string().trim().min(1, 'Username required').max(80)
+          .refine(
+            v => !v.includes('/') && !/^https?/i.test(v) && !/^www\./i.test(v) && !/\.(com|net|org|io|me|co)\b/i.test(v),
+            'Enter a username, not a link',
+          )
+          .transform(v => v.startsWith('@') ? v.slice(1) : v),
       }),
     )
     .min(1, "At least one social account is required")
@@ -262,7 +267,7 @@ export function CreatorSignupDialog({
                       </div>
                       <div className="flex-1 min-w-0">
                         <Input
-                          placeholder="username"
+                          placeholder="@username (no links)"
                           disabled={mutation.isPending}
                           {...form.register(`socialAccounts.${i}.handle`)}
                         />

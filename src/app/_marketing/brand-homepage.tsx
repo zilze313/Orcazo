@@ -20,7 +20,7 @@ export function BrandHomepage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <MarketingNav variant="brand" onPrimaryCta={() => setBrandOpen(true)} />
+      <MarketingNav />
 
       {/* Hero */}
       <section className="relative overflow-hidden border-b">

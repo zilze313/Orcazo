@@ -65,6 +65,7 @@ export const GET = withEmployee(async ({ session }) => {
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
         baselineCapturedAt:     true,
+        showFullHistory:        true,
       },
     }),
   ]);
@@ -83,7 +84,8 @@ export const GET = withEmployee(async ({ session }) => {
   }
 
   // ── Cutoff filter ─────────────────────────────────────────────────────────
-  const cutoff = allowlistRow?.proxyConnectedAt ?? null;
+  const showFull = employee?.showFullHistory ?? false;
+  const cutoff = showFull ? null : (allowlistRow?.proxyConnectedAt ?? null);
   const cutoffMs = cutoff ? cutoff.getTime() : 0;
 
   // Filter payout history to entries on/after the connection date.
@@ -108,9 +110,9 @@ export const GET = withEmployee(async ({ session }) => {
     }));
 
   // ── Baseline-adjusted waitingPayment ──────────────────────────────────────
-  const isFirstLoad = employee && !employee.baselineCapturedAt;
-  const bPayment = isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
-  const bReview  = isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview);
+  const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
+  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
+  const bReview  = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
   const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
 
@@ -165,12 +167,13 @@ export const POST = withEmployee(async ({ req, session }) => {
     ).catch(() => null),
     db.employee.findUnique({
       where: { id: session.employeeId },
-      select: { baselineWaitingPayment: true, baselineCapturedAt: true },
+      select: { baselineWaitingPayment: true, baselineCapturedAt: true, showFullHistory: true },
     }),
   ]);
 
-  const isFirstLoad = employee && !employee.baselineCapturedAt;
-  const bPayment = isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment);
+  const showFull = employee?.showFullHistory ?? false;
+  const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
+  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
 
   if (waitingPayment < MIN_PAYOUT_USD) {

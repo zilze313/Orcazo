@@ -21,6 +21,7 @@ export const GET = withAdmin(async () => {
     submissionsFailed7d,
     activeSessions,
     recentSubmissions,
+    earningsAggregate,
   ] = await Promise.all([
     db.employee.count(),
     db.allowlist.count(),
@@ -34,7 +35,24 @@ export const GET = withAdmin(async () => {
       orderBy: { createdAt: 'desc' },
       include: { employee: { select: { email: true, firstName: true } } },
     }),
+    db.employee.aggregate({
+      _sum: {
+        cachedBalance:        true,
+        cachedWaitingPayment: true,
+        cachedWaitingReview:  true,
+      },
+    }),
   ]);
+
+  const sumDecimal = (v: unknown) => {
+    if (v == null) return 0;
+    const n = parseFloat(String(v));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const totalEarnings =
+    sumDecimal(earningsAggregate._sum.cachedBalance) +
+    sumDecimal(earningsAggregate._sum.cachedWaitingPayment) +
+    sumDecimal(earningsAggregate._sum.cachedWaitingReview);
 
   return ok({
     employeeCount,
@@ -45,5 +63,11 @@ export const GET = withAdmin(async () => {
     submissionsFailed7d,
     activeSessions,
     recentSubmissions,
+    totalEarnings: Math.round(totalEarnings * 100) / 100,
+    totalEarningsBreakdown: {
+      paid:            Math.round(sumDecimal(earningsAggregate._sum.cachedBalance) * 100) / 100,
+      awaitingPayment: Math.round(sumDecimal(earningsAggregate._sum.cachedWaitingPayment) * 100) / 100,
+      awaitingReview:  Math.round(sumDecimal(earningsAggregate._sum.cachedWaitingReview) * 100) / 100,
+    },
   });
 });

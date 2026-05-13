@@ -47,8 +47,15 @@ model Allowlist {
   createdBy           String?
   createdByAdmin      Admin?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
+  // OTP automation: each proxy Gmail forwards to this address (e.g. alice@orcazo.com).
+  // Cloudflare Email Worker catches it, POSTs to /api/inbound-email, and we store the code here.
+  inboundAddress      String?   // set by admin; must be unique per creator
+  pendingOtp          String?   // latest OTP extracted from an inbound email
+  pendingOtpAt        DateTime? // when the OTP arrived (used for TTL checks)
+
   @@index([email])
   @@index([proxyEmail])
+  @@index([inboundAddress])
 }
 
 /// Pool of AffiliateNetwork emails the admin owns. When approving a creator
@@ -87,6 +94,9 @@ model Employee {
   lastLoginAt              DateTime?
   lastSyncedAt             DateTime?
   createdAt                DateTime            @default(now())
+  /// When true, the baseline isolation is bypassed: the creator sees all
+  /// historical submissions and earnings, including pre-connection history.
+  showFullHistory          Boolean             @default(false)
 
   sessions    Session[]
   submissions SubmissionAudit[]
