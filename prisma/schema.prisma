@@ -97,6 +97,10 @@ model Employee {
   /// When true, the baseline isolation is bypassed: the creator sees all
   /// historical submissions and earnings, including pre-connection history.
   showFullHistory          Boolean             @default(false)
+  /// JSON array of social-account publicIds that existed on the upstream
+  /// account when the creator first loaded their dashboard (baseline capture).
+  /// These are hidden from the creator unless showFullHistory is enabled.
+  baselineSocialIds        String?
 
   sessions    Session[]
   submissions SubmissionAudit[]

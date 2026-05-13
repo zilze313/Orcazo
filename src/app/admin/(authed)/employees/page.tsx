@@ -34,6 +34,7 @@ interface Employee {
   showFullHistory: boolean;
   lastSyncedAt: string | null;
   createdAt: string;
+  firstSocial: { platform: string; handle: string } | null;
 }
 
 interface ListResp {
@@ -60,6 +61,7 @@ const COLUMNS: Array<{
 }> = [
   { field: "email", label: "Email" },
   { field: "firstName", label: "Name" },
+  { field: null, label: "Social" },
   { field: null, label: "Bio code" },
   { field: "cachedBalance", label: "Paid", align: "right" },
   { field: "cachedWaitingPayment", label: "Awaiting payment", align: "right" },
@@ -238,6 +240,16 @@ export default function AdminEmployeesPage() {
                     <TableCell className="text-sm">
                       {e.firstName || e.lastName ? (
                         `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim()
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {e.firstSocial ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="capitalize text-muted-foreground">{e.firstSocial.platform}</span>
+                          <span className="font-medium">@{e.firstSocial.handle.replace(/^@/, "")}</span>
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

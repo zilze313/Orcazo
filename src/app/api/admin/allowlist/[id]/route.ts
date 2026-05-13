@@ -38,11 +38,18 @@ export async function PATCH(
     if (inUse) return fail(400, `Already connected to ${inUse.email}`, 'PROXY_IN_USE');
   }
 
+  // Auto-derive inboundAddress from the local part of the proxy email.
+  // e.g. forcantina02@gmail.com → forcantina02@orcazo.com
+  const inboundAddress = proxyEmail
+    ? `${proxyEmail.split('@')[0]}@orcazo.com`
+    : null;
+
   const updated = await db.allowlist.update({
     where: { id },
     data: {
       proxyEmail: proxyEmail ?? null,
       proxyConnectedAt: proxyEmail ? new Date() : null,
+      inboundAddress,
     },
   }).catch(() => null);
 
@@ -73,6 +80,11 @@ export async function DELETE(
   if (!entry) return fail(404, 'Not found');
 
   await db.allowlist.delete({ where: { id } });
+
+  // Also remove the employee record so they can't log in and no longer appear
+  // in the employees table. Fire-and-forget — non-fatal if they never logged in.
+  db.employee.deleteMany({ where: { email: entry.email } })
+    .catch((err) => log.warn('admin.employee_delete_failed', { err: String(err) }));
 
   db.adminAuditLog.create({
     data: {

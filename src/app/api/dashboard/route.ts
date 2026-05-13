@@ -2,8 +2,8 @@
 // Wraps fetch-dash. Upstream returns the whole array; we paginate server-side
 // so the client doesn't render thousands of rows at once.
 //
-// 50% commission: every monetary value (per-item base/cap/cpm/earnings AND
-// summary totalPaid/totalWaitingPayment/totalWaitingReview) is halved before
+// 2× display rate: every monetary value (per-item base/cap/cpm/earnings AND
+// summary totalPaid/totalWaitingPayment/totalWaitingReview) is doubled before
 // being delivered to the browser. totalCount is a count, not money — pass it
 // through unmodified.
 //
@@ -13,7 +13,7 @@
 // creator's first dashboard load.
 
 import { withEmployee, ok } from '@/lib/api';
-import { fetchDash } from '@/lib/affiliatenetwork/client';
+import { fetchDash, fetchSocials } from '@/lib/affiliatenetwork/client';
 import { limits } from '@/lib/ratelimit';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
@@ -84,15 +84,22 @@ export const GET = withEmployee(async ({ req, session }) => {
   // totals as a baseline. Future requests subtract this baseline so creators
   // only see earnings accrued after their proxy email was connected.
   if (employee && !employee.baselineCapturedAt) {
-    db.employee.update({
-      where: { id: session.employeeId },
-      data: {
-        baselineTotalPaid:      new Prisma.Decimal(String(num(resp.totalPaid))),
-        baselineWaitingPayment: new Prisma.Decimal(String(num(resp.totalWaitingPayment))),
-        baselineWaitingReview:  new Prisma.Decimal(String(num(resp.totalWaitingReview))),
-        baselineCapturedAt:     new Date(),
-      },
-    }).catch(() => {});
+    // Also capture existing social account IDs so they can be hidden from the creator.
+    fetchSocials(session.affiliateNetworkToken, session.affiliateNetworkCookies)
+      .then((sr) => {
+        const ids = (sr.socials ?? []).map((s: { publicId: string }) => s.publicId);
+        return db.employee.update({
+          where: { id: session.employeeId },
+          data: {
+            baselineTotalPaid:      new Prisma.Decimal(String(num(resp.totalPaid))),
+            baselineWaitingPayment: new Prisma.Decimal(String(num(resp.totalWaitingPayment))),
+            baselineWaitingReview:  new Prisma.Decimal(String(num(resp.totalWaitingReview))),
+            baselineCapturedAt:     new Date(),
+            baselineSocialIds:      JSON.stringify(ids),
+          },
+        });
+      })
+      .catch(() => {});
   }
 
   // ── Cutoff filter ─────────────────────────────────────────────────────────
@@ -126,17 +133,17 @@ export const GET = withEmployee(async ({ req, session }) => {
   const start = (page - 1) * pageSize;
   const rawItems = all.slice(start, start + pageSize);
 
-  // Halve all per-item monetary fields before delivery
+  // Double all per-item monetary fields before delivery (2× display rate)
   const items = rawItems.map((i) => ({
     ...i,
-    base:     num(i.base)     / 2,
-    cap:      num(i.cap)      / 2,
-    cpm:      num(i.cpm)      / 2,
-    earnings: num(i.earnings) / 2,
+    base:     num(i.base)     * 2,
+    cap:      num(i.cap)      * 2,
+    cpm:      num(i.cpm)      * 2,
+    earnings: num(i.earnings) * 2,
   }));
 
   // ── Baseline-adjusted summary totals ─────────────────────────────────────
-  // showFull → no subtraction (baseline = 0, show raw upstream / 2).
+  // showFull → no subtraction (baseline = 0, show raw upstream * 2).
   // First load → use current upstream as baseline so totals start at zero.
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPaid    = showFull ? 0 : (isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid));
@@ -145,9 +152,9 @@ export const GET = withEmployee(async ({ req, session }) => {
 
   const summary = {
     totalCount:          total,
-    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  / 2,
-    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) / 2,
-    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    / 2,
+    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * 2,
+    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) * 2,
+    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    * 2,
   };
 
   return ok({

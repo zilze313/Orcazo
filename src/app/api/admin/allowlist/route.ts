@@ -72,12 +72,18 @@ export const POST = withAdmin(async ({ req, session }) => {
     return ok({ entry: existing, alreadyExisted: true });
   }
 
+  // Auto-derive inboundAddress from the local part of the proxy email.
+  const inboundAddress = proxyEmail
+    ? `${proxyEmail.split('@')[0]}@orcazo.com`
+    : null;
+
   const entry = await db.allowlist.create({
     data: {
       email,
       note: note ?? null,
       proxyEmail: proxyEmail ?? null,
       proxyConnectedAt: proxyEmail ? new Date() : null,
+      inboundAddress,
       createdBy: session.adminId,
     },
   });

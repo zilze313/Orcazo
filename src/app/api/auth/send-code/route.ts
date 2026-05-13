@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
   if (!allowed.proxyEmail) {
     log.warn('auth.send_code_no_proxy_connected', { publicEmail });
-    return fail(403, 'Your account is not fully set up yet. Please contact your admin.', 'NO_PROXY');
+    return fail(403, 'Your account is not fully set up yet. Please contact support.', 'NO_PROXY');
   }
 
   try {

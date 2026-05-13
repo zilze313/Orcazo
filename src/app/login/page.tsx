@@ -137,8 +137,8 @@ export default function LoginPage() {
           </CardTitle>
           <CardDescription>
             {step === "email"
-              ? "Use the email your admin assigned you. A verification code will be sent to your inbox."
-              : `We sent a code to ${email}.`}
+              ? "Enter your email and we'll send you a verification code."
+              : `We sent a code to ${email}. It can take 15–20 seconds to arrive.`}
           </CardDescription>
         </CardHeader>
         <CardContent>

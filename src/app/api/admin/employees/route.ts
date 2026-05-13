@@ -64,13 +64,30 @@ export const GET = withAdmin(async ({ req }) => {
     }),
   ]);
 
+  // Fetch social accounts from signup forms (keyed by publicEmail)
+  const emails = employees.map((e) => e.email);
+  const signupRows = emails.length
+    ? await db.creatorSignupRequest.findMany({
+        where: { publicEmail: { in: emails } },
+        select: { publicEmail: true, socialAccounts: true },
+      })
+    : [];
+  const signupMap = new Map(signupRows.map((r) => [r.publicEmail, r.socialAccounts]));
+
   return ok({
-    employees: employees.map((e) => ({
-      ...e,
-      cachedBalance:        e.cachedBalance?.toString()        ?? null,
-      cachedWaitingPayment: e.cachedWaitingPayment?.toString() ?? null,
-      cachedWaitingReview:  e.cachedWaitingReview?.toString()  ?? null,
-    })),
+    employees: employees.map((e) => {
+      const accs = signupMap.get(e.email);
+      const firstSocial = Array.isArray(accs) && accs.length > 0
+        ? (accs[0] as { platform: string; handle: string })
+        : null;
+      return {
+        ...e,
+        cachedBalance:        e.cachedBalance?.toString()        ?? null,
+        cachedWaitingPayment: e.cachedWaitingPayment?.toString() ?? null,
+        cachedWaitingReview:  e.cachedWaitingReview?.toString()  ?? null,
+        firstSocial,
+      };
+    }),
     pagination: {
       page,
       pageSize,

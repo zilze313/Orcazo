@@ -116,8 +116,8 @@ export function LoginDialog({
           </DialogTitle>
           <DialogDescription className="text-center">
             {step === "email"
-              ? "Enter the email your admin assigned you."
-              : `We sent a verification code to ${email}.`}
+              ? "Enter your email and we'll send you a verification code."
+              : `We sent a code to ${email}. It can take 15–20 seconds to arrive.`}
           </DialogDescription>
         </DialogHeader>
 

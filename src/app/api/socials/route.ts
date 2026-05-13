@@ -9,6 +9,7 @@ import { withEmployee, ok, parseBody, fail } from '@/lib/api';
 import { fetchSocials, addSocial } from '@/lib/affiliatenetwork/client';
 import { addSocialBody } from '@/lib/validators';
 import { limits } from '@/lib/ratelimit';
+import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,11 +29,28 @@ function platformUrl(platform: string, handle: string): string {
 }
 
 export const GET = withEmployee(async ({ session }) => {
-  const resp = await fetchSocials(
-    session.affiliateNetworkToken,
-    session.affiliateNetworkCookies,
-  );
-  return ok({ socials: resp.socials ?? [] });
+  const [resp, employee] = await Promise.all([
+    fetchSocials(session.affiliateNetworkToken, session.affiliateNetworkCookies),
+    db.employee.findUnique({
+      where: { id: session.employeeId },
+      select: { baselineSocialIds: true, showFullHistory: true },
+    }),
+  ]);
+
+  let socials = resp.socials ?? [];
+
+  // Hide social accounts that pre-existed when this creator's proxy was connected,
+  // unless the admin has enabled full-history mode for them.
+  if (!employee?.showFullHistory && employee?.baselineSocialIds) {
+    try {
+      const baselineSet = new Set<string>(JSON.parse(employee.baselineSocialIds));
+      socials = socials.filter((s: { publicId: string }) => !baselineSet.has(s.publicId));
+    } catch {
+      // malformed JSON — skip filter
+    }
+  }
+
+  return ok({ socials });
 }, { rateLimit: limits.employee });
 
 export const POST = withEmployee(async ({ req, session }) => {

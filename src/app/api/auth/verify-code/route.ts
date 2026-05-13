@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return fail(403, 'This email is not authorized', 'NOT_ALLOWLISTED');
   }
   if (!allowed.proxyEmail) {
-    return fail(403, 'Your account is not fully set up yet. Please contact your admin.', 'NO_PROXY');
+    return fail(403, 'Your account is not fully set up yet. Please contact support.', 'NO_PROXY');
   }
   const proxyEmail = allowed.proxyEmail;
 

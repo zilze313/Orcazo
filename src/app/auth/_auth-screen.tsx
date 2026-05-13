@@ -224,7 +224,8 @@ function LoginForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   return (
     <form onSubmit={codeHook.handleSubmit(verify)} className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        We sent a code to <strong className="text-foreground">{email}</strong>.
+        We sent a code to <strong className="text-foreground">{email}</strong>.{" "}
+        It can take 15–20 seconds to arrive.
       </p>
       <div className="space-y-2">
         <Label htmlFor="login-code">Verification code</Label>
@@ -550,7 +551,7 @@ export function AuthScreen({ defaultTab }: { defaultTab: "login" | "signup" }) {
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 {tab === "login"
-                  ? "Enter the email your admin assigned you."
+                  ? "Enter your email and we'll send you a verification code."
                   : "Quick form, no fluff. Most applicants hear back within 24 hours."}
               </p>
             </div>

@@ -138,9 +138,8 @@ export default function SocialsPage() {
                 Your account isn&apos;t fully set up yet
               </div>
               <div className="text-muted-foreground mt-1">
-                Your verification code hasn&apos;t been generated. Contact your
-                admin — they need to finish setting up your account before you
-                can connect social profiles.
+                Your account is still being set up. Please check back soon or
+                contact support if it&apos;s been a while.
               </div>
             </div>
           )}
