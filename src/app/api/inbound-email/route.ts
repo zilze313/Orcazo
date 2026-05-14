@@ -84,12 +84,26 @@ export async function POST(req: NextRequest) {
   // Extract OTP
   const otp = extractOtp(rawEmail);
   if (!otp) {
-    // Log a snippet of the raw email so Gmail forwarding confirmation links
-    // (and any other non-OTP mail) are visible in Vercel logs.
+    // Look for a Gmail forwarding confirmation URL (vf- prefix = verify forwarding).
+    // Search both the raw text AND any base64-encoded MIME body sections.
+    const CONFIRM_RE = /https:\/\/mail\.google\.com\/mail\/vf-[^\s\r\n"<>]+/;
+    let confirmUrl = rawEmail.match(CONFIRM_RE)?.[0] ?? null;
+
+    if (!confirmUrl) {
+      const b64Sections = rawEmail.match(/([A-Za-z0-9+/]{60,}={0,2})/g) ?? [];
+      for (const section of b64Sections) {
+        try {
+          const decoded = Buffer.from(section, 'base64').toString('utf-8');
+          const m = decoded.match(CONFIRM_RE);
+          if (m) { confirmUrl = m[0]; break; }
+        } catch { /* not valid base64 */ }
+      }
+    }
+
     log.warn('inbound_email.otp_not_found', {
       to,
       subject: body.subject?.slice(0, 80),
-      bodySnippet: rawEmail.slice(0, 600),
+      ...(confirmUrl ? { gmailConfirmUrl: confirmUrl } : { bodySnippet: rawEmail.slice(0, 400) }),
     });
     // Return 200 so Cloudflare doesn't retry indefinitely
     return new Response('OK – OTP not found', { status: 200 });
