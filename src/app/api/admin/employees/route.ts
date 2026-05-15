@@ -30,12 +30,22 @@ export const GET = withAdmin(async ({ req }) => {
   }
   const { search, sort, order, page, pageSize } = parsed.data;
 
+  let socialMatchEmails: string[] = [];
+  if (search) {
+    const socialRows = await db.creatorSignupRequest.findMany({
+      where: { socialAccounts: { path: [], string_contains: search } },
+      select: { publicEmail: true },
+    });
+    socialMatchEmails = socialRows.map((r) => r.publicEmail);
+  }
+
   const where: Prisma.EmployeeWhereInput = search
     ? {
         OR: [
           { email:     { contains: search, mode: 'insensitive' } },
           { firstName: { contains: search, mode: 'insensitive' } },
           { lastName:  { contains: search, mode: 'insensitive' } },
+          ...(socialMatchEmails.length > 0 ? [{ email: { in: socialMatchEmails } }] : []),
         ],
       }
     : {};
@@ -58,6 +68,7 @@ export const GET = withAdmin(async ({ req }) => {
         cachedWaitingPayment: true,
         cachedWaitingReview: true,
         showFullHistory: true,
+        adminNotes: true,
         lastSyncedAt: true,
         createdAt: true,
       },

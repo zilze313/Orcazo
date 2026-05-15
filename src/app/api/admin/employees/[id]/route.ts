@@ -13,7 +13,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const patchBody = z.object({
-  showFullHistory: z.boolean(),
+  showFullHistory: z.boolean().optional(),
+  adminNotes: z.string().max(2000).optional().nullable(),
 });
 
 export async function PATCH(
@@ -40,10 +41,14 @@ export async function PATCH(
   const employee = await db.employee.findUnique({ where: { id }, select: { id: true } });
   if (!employee) return fail(404, 'Employee not found.', 'NOT_FOUND');
 
+  const data: Record<string, unknown> = {};
+  if (parsed.data.showFullHistory !== undefined) data.showFullHistory = parsed.data.showFullHistory;
+  if (parsed.data.adminNotes !== undefined) data.adminNotes = parsed.data.adminNotes;
+
   const updated = await db.employee.update({
     where: { id },
-    data: { showFullHistory: parsed.data.showFullHistory },
-    select: { id: true, showFullHistory: true },
+    data,
+    select: { id: true, showFullHistory: true, adminNotes: true },
   });
 
   return ok(updated);

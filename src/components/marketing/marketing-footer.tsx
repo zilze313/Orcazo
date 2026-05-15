@@ -10,18 +10,12 @@ export function MarketingFooter() {
             <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
           </Link>
           <p className="text-muted-foreground mt-3 max-w-xs leading-relaxed">
-            The supreme platform for affiliate content marketing. Connect brands
-            with vetted creators worldwide.
+            The supreme platform for affiliate content marketing. Empowering creators worldwide.
           </p>
         </div>
         <div>
           <div className="font-semibold mb-3">Platform</div>
           <ul className="space-y-2 text-muted-foreground">
-            <li>
-              <Link href="/" className="hover:text-foreground">
-                For Brands
-              </Link>
-            </li>
             <li>
               <Link href="/creators" className="hover:text-foreground">
                 For Creators
@@ -73,7 +67,7 @@ export function MarketingFooter() {
       <div className="border-t">
         <div className="container max-w-7xl px-4 py-5 text-xs text-muted-foreground flex flex-col sm:flex-row justify-between gap-2">
           <div>© {new Date().getFullYear()} Orcazo. All rights reserved.</div>
-          <div>Made for brands and creators worldwide.</div>
+          <div>Made for creators worldwide.</div>
         </div>
       </div>
     </footer>

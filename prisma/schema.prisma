@@ -101,6 +101,7 @@ model Employee {
   /// account when the creator first loaded their dashboard (baseline capture).
   /// These are hidden from the creator unless showFullHistory is enabled.
   baselineSocialIds        String?
+  adminNotes               String?             @db.Text
 
   sessions    Session[]
   submissions SubmissionAudit[]
@@ -210,22 +211,6 @@ model CreatorSignupRequest {
   @@index([publicEmail])
 }
 
-/// Brand inquiry submissions from the public marketing site.
-model BrandSignupRequest {
-  id            String    @id @default(cuid())
-  email         String
-  brandName     String
-  /// Free-text range, e.g. "$1k-$5k"
-  monthlyBudget String
-  createdAt     DateTime  @default(now())
-  contactedAt   DateTime?
-  contactedBy   String?
-  ipAddress     String?
-
-  @@index([createdAt(sort: Desc)])
-  @@index([contactedAt])
-  @@index([email])
-}
 
 /// A login-code relay request. Created when a creator hits /api/auth/send-code.
 /// Admin sees it, retrieves the OTP from the proxy inbox, pastes it here and
@@ -321,6 +306,20 @@ model Announcement {
 
   @@index([published, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
+}
+
+/// Admin overrides for campaign display name and rates.
+/// When a creator views campaigns, these values replace the upstream defaults.
+model CampaignOverride {
+  id               String   @id @default(cuid())
+  campaignPublicId String   @unique
+  displayName      String?
+  displayCpm       Decimal? @db.Decimal(10, 4)
+  displayBase      Decimal? @db.Decimal(10, 4)
+  displayCap       Decimal? @db.Decimal(10, 4)
+  updatedAt        DateTime @updatedAt
+
+  @@index([campaignPublicId])
 }
 
 /// Support chat messages between creators and admin.

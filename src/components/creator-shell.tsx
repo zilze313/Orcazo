@@ -17,12 +17,17 @@ import {
   Sun,
   Newspaper,
   MessageCircle,
+  PlayCircle,
+  DollarSign,
+  Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { AnnouncementBanner } from "@/components/announcement-banner";
+import { OnboardingTour } from "@/components/onboarding-tour";
 
 const NAV = [
   { href: "/campaigns",      label: "Explore Campaigns",    icon: Compass   },
@@ -30,8 +35,10 @@ const NAV = [
   { href: "/dashboard",      label: "Dashboard",            icon: LineChart },
   { href: "/social-accounts",label: "Social Media Accounts",icon: AtSign    },
   { href: "/payouts",        label: "Payouts",              icon: Wallet    },
+  { href: "/referrals",     label: "Referrals",            icon: Gift      },
   { href: "/updates",        label: "Updates",              icon: Newspaper      },
   { href: "/support",        label: "Support",              icon: MessageCircle  },
+  { href: "/guide",          label: "Guide",                icon: PlayCircle     },
 ];
 
 export function CreatorShell({
@@ -60,6 +67,25 @@ export function CreatorShell({
 
   const { theme, setTheme } = useTheme();
   const initials = user.email.slice(0, 1).toUpperCase();
+  const [balance, setBalance] = React.useState<number | null>(null);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  React.useEffect(() => {
+    api.get<{ waitingPayment: number }>('/api/payouts')
+      .then((d) => setBalance(d.waitingPayment))
+      .catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    const fetchUnread = () => {
+      api.get<{ count: number }>('/api/chat/unread')
+        .then((d) => setUnreadCount(d.count))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -109,10 +135,26 @@ export function CreatorShell({
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
+                {item.href === '/support' && unreadCount > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
+        {balance !== null && (
+          <div className="border-t px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <DollarSign className="h-4 w-4 text-emerald-500" />
+              <span className="text-muted-foreground">Balance</span>
+              <span className="ml-auto font-semibold text-emerald-600 dark:text-emerald-400">
+                ${balance.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="border-t p-3">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
@@ -159,8 +201,10 @@ export function CreatorShell({
           </button>
           <span className="ml-2 font-semibold">Orcazo</span>
         </header>
+        <AnnouncementBanner />
         <main className="flex-1">{children}</main>
       </div>
+      <OnboardingTour />
     </div>
   );
 }

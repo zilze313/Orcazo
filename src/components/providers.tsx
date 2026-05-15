@@ -6,6 +6,12 @@ import { Toaster } from 'sonner';
 import { ThemeProvider } from 'next-themes';
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  React.useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   const [client] = React.useState(
     () =>
       new QueryClient({

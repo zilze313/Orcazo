@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   LineChart, ExternalLink, DollarSign, Clock, CheckCircle2,
   Film, Hourglass, Eye,
@@ -10,6 +11,7 @@ import {
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -163,6 +165,11 @@ export default function DashboardPage() {
               icon={LineChart}
               title="No submissions yet"
               description="Submit a post on the campaigns page to see your stats here."
+              action={
+                <Button asChild size="sm">
+                  <Link href="/campaigns">Browse campaigns</Link>
+                </Button>
+              }
             />
           ) : (
             <Table>

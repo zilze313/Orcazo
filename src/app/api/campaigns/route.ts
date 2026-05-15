@@ -85,7 +85,7 @@ export const GET = withEmployee(
       Math.max(1, parseInt(url.searchParams.get("pageSize") || "24", 10)),
     );
 
-    const [campaignsResp, appsResp, customRulesRows, hiddenRows] =
+    const [campaignsResp, appsResp, customRulesRows, hiddenRows, overrideRows] =
       await Promise.all([
         fetchCampaigns(
           session.affiliateNetworkToken,
@@ -102,12 +102,14 @@ export const GET = withEmployee(
           where: { hidden: true },
           select: { campaignPublicId: true },
         }),
+        db.campaignOverride.findMany(),
       ]);
 
     const customRulesMap = new Map(
       customRulesRows.map((r) => [r.campaignPublicId, r.rulesHtml]),
     );
     const hiddenSet = new Set(hiddenRows.map((r) => r.campaignPublicId));
+    const overrideMap = new Map(overrideRows.map((r) => [r.campaignPublicId, r]));
 
     let campaigns = (campaignsResp.campaigns ?? []).filter(
       (c) => !hiddenSet.has(c.publicId),
@@ -140,27 +142,61 @@ export const GET = withEmployee(
     const start = (page - 1) * pageSize;
     const slice = campaigns.slice(start, start + pageSize);
 
-    const items = slice.map((c) => ({
-      publicId: c.publicId,
-      name: c.name,
-      icon: c.icon,
-      favorite: c.favorite,
-      assetLinks: c.assetLinks ?? [],
-      rates: doubleRates(c.rates),
-      // Extras for detail modal + card logic
-      applyMode: c.applyMode ?? null,
-      // Use admin-managed rules only; never expose upstream rules (URL or array)
-      rules: customRulesMap.get(c.publicId) || null,
-      examples: c.examples ?? [],
-      applicationQuestions: c.applicationQuestions ?? [],
-      approvalRate: c.approvalRate ?? null,
-      dateEnd: c.dateEnd ?? null,
-      inviteOnly: c.inviteOnly ?? false,
-      totalBudget: c.totalBudget != null ? num(c.totalBudget) * 2 : null,
-      budgetRemaining:
-        c.budgetRemaining != null ? num(c.budgetRemaining) * 2 : null,
-      applications: appsByCampaign.get(c.publicId) ?? [],
-    }));
+    const items = slice.map((c) => {
+      const ov = overrideMap.get(c.publicId);
+      let rates = doubleRates(c.rates);
+
+      // Apply admin rate overrides (displayCpm / displayBase / displayCap).
+      // These replace the post-multiplier values so the creator sees exactly
+      // what the admin entered.
+      if (ov && rates?.details) {
+        for (const [platform, langs] of Object.entries(rates.details)) {
+          const bucket: Record<string, AnPlatformLanguageRate> = {};
+          for (const [lang, vals] of Object.entries(langs ?? {})) {
+            const v = vals as AnPlatformLanguageRate;
+            bucket[lang] = {
+              ...v,
+              ...(ov.displayCpm != null && { cpm: Number(ov.displayCpm) }),
+              ...(ov.displayBase != null && { base: Number(ov.displayBase) }),
+              ...(ov.displayCap != null && { cap: Number(ov.displayCap) }),
+            };
+          }
+          rates.details[platform] = bucket;
+        }
+      }
+      if (ov && rates?.standards) {
+        rates = {
+          ...rates,
+          standards: {
+            ...rates.standards,
+            ...(ov.displayBase != null && { base: Number(ov.displayBase) }),
+            ...(ov.displayCap != null && { cap: Number(ov.displayCap) }),
+          },
+        };
+      }
+
+      return {
+        publicId: c.publicId,
+        name: ov?.displayName || c.name,
+        icon: c.icon,
+        favorite: c.favorite,
+        assetLinks: c.assetLinks ?? [],
+        rates,
+        // Extras for detail modal + card logic
+        applyMode: c.applyMode ?? null,
+        // Use admin-managed rules only; never expose upstream rules (URL or array)
+        rules: customRulesMap.get(c.publicId) || null,
+        examples: c.examples ?? [],
+        applicationQuestions: c.applicationQuestions ?? [],
+        approvalRate: c.approvalRate ?? null,
+        dateEnd: c.dateEnd ?? null,
+        inviteOnly: c.inviteOnly ?? false,
+        totalBudget: c.totalBudget != null ? num(c.totalBudget) * 2 : null,
+        budgetRemaining:
+          c.budgetRemaining != null ? num(c.budgetRemaining) * 2 : null,
+        applications: appsByCampaign.get(c.publicId) ?? [],
+      };
+    });
 
     return ok({
       items,

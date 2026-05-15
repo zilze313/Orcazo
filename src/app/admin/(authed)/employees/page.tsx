@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, Search, ArrowUpDown, ArrowDown, ArrowUp, History } from "lucide-react";
+import { Users, Search, ArrowUpDown, ArrowDown, ArrowUp, History, Info } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ interface Employee {
   cachedWaitingPayment: string | null;
   cachedWaitingReview: string | null;
   showFullHistory: boolean;
+  adminNotes: string | null;
   lastSyncedAt: string | null;
   createdAt: string;
   firstSocial: { platform: string; handle: string } | null;
@@ -68,7 +69,15 @@ const COLUMNS: Array<{
   { field: null, label: "Awaiting review", align: "right" },
   { field: null, label: "Full history", align: "center" },
   { field: "createdAt", label: "Joined" },
+  { field: null, label: "Notes" },
 ];
+
+const COLUMN_TOOLTIPS: Record<string, string> = {
+  "Bio code": "The verification code the creator adds to their social media bio",
+  "Awaiting payment": "Earnings approved but not yet paid out",
+  "Awaiting review": "Earnings pending review by the network",
+  "Full history": "Toggle to show pre-connection earnings or keep baseline isolation",
+};
 
 export default function AdminEmployeesPage() {
   const router = useRouter();
@@ -173,6 +182,27 @@ export default function AdminEmployeesPage() {
     }
   };
 
+  const saveNotes = async (employee: Employee, notes: string) => {
+    const trimmed = notes.trim() || null;
+    if (trimmed === employee.adminNotes) return;
+    queryClient.setQueryData<ListResp>(queryKey, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        employees: old.employees.map((e) =>
+          e.id === employee.id ? { ...e, adminNotes: trimmed } : e,
+        ),
+      };
+    });
+    try {
+      await fetch(`/api/admin/employees/${employee.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminNotes: trimmed }),
+      });
+    } catch {}
+  };
+
   return (
     <>
       <PageHeader
@@ -213,24 +243,34 @@ export default function AdminEmployeesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {COLUMNS.map((col) => (
-                    <TableHead
-                      key={col.label}
-                      className={`whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}
-                    >
-                      {col.field ? (
-                        <button
-                          onClick={() => setSort(col.field!)}
-                          className="inline-flex items-center gap-1 hover:text-foreground"
-                        >
-                          {col.label}
-                          <SortIcon active={sort === col.field} order={order} />
-                        </button>
-                      ) : (
-                        col.label
-                      )}
-                    </TableHead>
-                  ))}
+                  {COLUMNS.map((col) => {
+                    const tooltip = COLUMN_TOOLTIPS[col.label];
+                    const label = tooltip ? (
+                      <span className="inline-flex items-center gap-1" title={tooltip}>
+                        {col.label} <Info className="h-3 w-3 text-muted-foreground" />
+                      </span>
+                    ) : (
+                      col.label
+                    );
+                    return (
+                      <TableHead
+                        key={col.label}
+                        className={`whitespace-nowrap ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}
+                      >
+                        {col.field ? (
+                          <button
+                            onClick={() => setSort(col.field!)}
+                            className="inline-flex items-center gap-1 hover:text-foreground"
+                          >
+                            {label}
+                            <SortIcon active={sort === col.field} order={order} />
+                          </button>
+                        ) : (
+                          label
+                        )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -291,6 +331,14 @@ export default function AdminEmployeesPage() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(e.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        defaultValue={e.adminNotes ?? ""}
+                        placeholder="Add note..."
+                        className="h-7 text-xs w-40"
+                        onBlur={(ev) => saveNotes(e, ev.target.value)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

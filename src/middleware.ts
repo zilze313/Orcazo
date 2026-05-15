@@ -4,7 +4,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC = ['/login', '/admin/login', '/api/auth', '/api/admin/auth'];
+const PUBLIC = [
+  '/login', '/admin/login',
+  '/api/auth', '/api/admin/auth',
+  '/api/inbound-email', '/api/public',
+  '/auth',
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -20,7 +25,11 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/my-campaigns') ||
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/social-accounts') ||
-    pathname.startsWith('/payouts')
+    pathname.startsWith('/payouts') ||
+    pathname.startsWith('/referrals') ||
+    pathname.startsWith('/updates') ||
+    pathname.startsWith('/support') ||
+    pathname.startsWith('/guide')
   ) {
     if (!req.cookies.get('sf_session')) {
       const url = req.nextUrl.clone();

@@ -2,11 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Megaphone, Heart, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
 import { CampaignsResponse } from '@/components/campaigns/types';
@@ -64,6 +66,11 @@ export default function MyCampaignsPage() {
                   icon={Heart}
                   title="No favorited campaigns"
                   description="Click the heart icon on any campaign card to save it here."
+                  action={
+                    <Button asChild size="sm">
+                      <Link href="/campaigns">Browse campaigns</Link>
+                    </Button>
+                  }
                 />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -85,6 +92,11 @@ export default function MyCampaignsPage() {
                   icon={Megaphone}
                   title="No applications yet"
                   description="Head over to Explore Campaigns to apply."
+                  action={
+                    <Button asChild size="sm">
+                      <Link href="/campaigns">Explore campaigns</Link>
+                    </Button>
+                  }
                 />
               ) : (
                 <div className="space-y-3">

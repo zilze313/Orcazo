@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, Loader2, MessageCircle } from 'lucide-react';
+import { Send, Loader2, MessageCircle, HelpCircle } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -79,10 +80,17 @@ export default function SupportPage() {
         <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
           <MessageCircle className="h-4 w-4" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-sm">Support</p>
           <p className="text-xs text-muted-foreground">Chat with our team · we usually reply within a few hours</p>
         </div>
+        <Link
+          href="/support/faq"
+          className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+          FAQ
+        </Link>
       </div>
 
       {/* Messages */}

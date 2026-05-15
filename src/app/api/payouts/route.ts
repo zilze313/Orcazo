@@ -1,7 +1,9 @@
-// GET  /api/payouts  → upstream payout history (halved monetary fields) + own
+// GET  /api/payouts  → upstream payout history (2× display rate) + own
 //                       saved payout details from last request (auto-fill) +
 //                       current waiting-payment amount (gates the request button)
 // POST /api/payouts  → create a new PayoutRequest (server enforces $10 minimum)
+//
+// 2× display rate: every monetary value is doubled before delivery to the browser.
 //
 // Baseline isolation: payout history is filtered to entries on/after
 // proxyConnectedAt; waitingPayment is adjusted by subtracting the baseline
@@ -89,8 +91,8 @@ export const GET = withEmployee(async ({ session }) => {
   const cutoffMs = cutoff ? cutoff.getTime() : 0;
 
   // Filter payout history to entries on/after the connection date.
-  // Halve every monetary field; pass through the rest (id, status, dates, fee).
-  // Fee is NOT halved per spec — fees aren't earnings, they're real costs.
+  // Double every monetary field (2× display rate); pass through the rest.
+  // Fee is NOT doubled — fees aren't earnings, they're real costs.
   const history = (payoutsResp?.payouts ?? [])
     .filter((p) => {
       if (!cutoff) return true;
@@ -103,9 +105,9 @@ export const GET = withEmployee(async ({ session }) => {
       updatedAt: p.updatedAt,
       status: p.status,
       paymentMethod: p.paymentMethod,
-      amountSubmitted: num(p.amountSubmitted) / 2,
+      amountSubmitted: num(p.amountSubmitted) * 2,
       fee:             p.fee != null ? num(p.fee) : null,
-      amountPaid:      p.amountPaid != null ? num(p.amountPaid) / 2 : null,
+      amountPaid:      p.amountPaid != null ? num(p.amountPaid) * 2 : null,
       currency: p.currency,
     }));
 
@@ -114,11 +116,11 @@ export const GET = withEmployee(async ({ session }) => {
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const bReview  = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
-  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
+  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * 2;
 
   // Cache adjusted waiting-payment on the Employee row
   if (dashResp != null) {
-    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) / 2;
+    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) * 2;
     db.employee.update({
       where: { id: session.employeeId },
       data: {
@@ -174,7 +176,7 @@ export const POST = withEmployee(async ({ req, session }) => {
   const showFull = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
-  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) / 2;
+  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * 2;
 
   if (waitingPayment < MIN_PAYOUT_USD) {
     return fail(400, `You need at least $${MIN_PAYOUT_USD} in awaiting payment to request a payout.`, 'BELOW_MIN');

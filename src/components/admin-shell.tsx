@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Building2, Wallet, AtSign,
+  LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,7 +16,6 @@ import { AdminNotificationsBell } from '@/components/admin-notifications';
 
 interface BadgeCounts {
   creatorSignups: number;
-  brandSignups: number;
   payouts: number;
   loginRequests: number;
   messages: number;
@@ -25,7 +24,6 @@ interface BadgeCounts {
 // Map each nav href to its badge key
 const BADGE_KEY: Record<string, keyof BadgeCounts> = {
   '/admin/creator-signups': 'creatorSignups',
-  '/admin/brand-signups':   'brandSignups',
   '/admin/payouts':         'payouts',
   '/admin/login-requests':  'loginRequests',
   '/admin/messages':        'messages',
@@ -34,7 +32,6 @@ const BADGE_KEY: Record<string, keyof BadgeCounts> = {
 const NAV = [
   { href: '/admin',                 label: 'Dashboard',        icon: LayoutDashboard },
   { href: '/admin/creator-signups', label: 'Creator signups',  icon: UserPlus        },
-  { href: '/admin/brand-signups',   label: 'Brand inquiries',  icon: Building2       },
   { href: '/admin/payouts',         label: 'Payouts',          icon: Wallet          },
   { href: '/admin/login-requests',  label: 'Login requests',   icon: KeyRound        },
   { href: '/admin/allowlist',       label: 'Allowlist',        icon: ShieldCheck     },

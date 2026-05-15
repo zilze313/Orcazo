@@ -5,7 +5,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodSchema, ZodError } from 'zod';
 import { getEmployeeSession, getAdminSession } from './session';
-import { rateLimit, RateLimitOpts } from './ratelimit';
+import { rateLimit, RateLimitOpts, limits } from './ratelimit';
 import { UpstreamError } from './affiliatenetwork/types';
 import { log } from './logger';
 
@@ -77,8 +77,11 @@ export function withEmployee<T>(
     const session = await getEmployeeSession();
     if (!session) return fail(401, 'Not authenticated', 'UNAUTHENTICATED');
 
-    if (opts?.rateLimit) {
-      const r = applyLimit(`emp:${session.employeeId}`, opts.rateLimit);
+    // Always apply per-employee rate limit (default: limits.employee).
+    // Callers can pass a tighter limit (e.g. submitPost) which overrides the default.
+    {
+      const rl = opts?.rateLimit ?? limits.employee;
+      const r = applyLimit(`emp:${session.employeeId}`, rl);
       if (r) return r;
     }
 

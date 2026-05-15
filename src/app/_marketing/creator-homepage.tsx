@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowRight, DollarSign, Clock, Trophy, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, DollarSign, Clock, Trophy, Sparkles, Users, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { MarketingNav } from '@/components/marketing/marketing-nav';
@@ -12,6 +12,7 @@ import { MARKETING } from '@/config/marketing';
 import { PlatformIcon } from '@/components/platform-icon';
 
 const PLATFORMS = ['tiktok', 'instagram', 'youtube', 'snapchat', 'x', 'facebook'] as const;
+const VIDEO_ID = ''; // Replace with your YouTube video ID
 
 export function CreatorHomepage() {
   return (
@@ -101,6 +102,36 @@ export function CreatorHomepage() {
                 ))}
               </div>
             </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* Video embed */}
+      <section className="border-b py-20">
+        <div className="container max-w-4xl px-4">
+          <FadeIn>
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">See how it works</h2>
+              <p className="mt-3 text-muted-foreground">
+                Watch a quick walkthrough of how creators earn on Orcazo.
+              </p>
+            </div>
+            {VIDEO_ID ? (
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden border bg-muted">
+                <iframe
+                  src={`https://www.youtube.com/embed/${VIDEO_ID}?modestbranding=1&rel=0`}
+                  title="Orcazo — How it works"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full"
+                />
+              </div>
+            ) : (
+              <div className="w-full aspect-video rounded-xl border bg-muted flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <PlayCircle className="h-12 w-12" />
+                <p className="text-sm">Video coming soon</p>
+              </div>
+            )}
           </FadeIn>
         </div>
       </section>

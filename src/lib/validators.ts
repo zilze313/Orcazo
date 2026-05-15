@@ -75,15 +75,6 @@ export const creatorSignupBody = z.object({
   turnstileToken: z.string().optional(),
 });
 
-export const brandSignupBody = z.object({
-  email: emailSchema,
-  brandName: z.string().trim().min(2, "Brand name is required").max(120),
-  monthlyBudget: z.string().trim().min(1).max(80),
-  // Honeypot
-  website: z.string().max(0, "Suspicious activity detected").optional(),
-  turnstileToken: z.string().optional(),
-});
-
 // =============================================================
 // Admin signup-review actions
 // =============================================================
@@ -98,9 +89,6 @@ export const rejectCreatorBody = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
-export const markBrandContactedBody = z.object({
-  id: z.string().min(1).max(64),
-});
 
 // =============================================================
 // Payouts
@@ -172,6 +160,18 @@ export const addSocialBody = z.object({
 
 export const deleteSocialBody = z.object({
   publicId: z.string().min(1).max(64),
+});
+
+// =============================================================
+// Campaign overrides (admin)
+// =============================================================
+
+export const campaignOverrideBody = z.object({
+  campaignPublicId: z.string().min(1).max(64),
+  displayName: z.string().trim().max(200).optional().nullable(),
+  displayCpm: z.coerce.number().min(0).max(999999).optional().nullable(),
+  displayBase: z.coerce.number().min(0).max(999999).optional().nullable(),
+  displayCap: z.coerce.number().min(0).max(999999).optional().nullable(),
 });
 
 export const dashFiltersSchema = z.object({

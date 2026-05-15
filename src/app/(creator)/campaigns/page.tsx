@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Compass, Search } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
@@ -83,6 +84,11 @@ export default function CampaignsPage() {
             icon={Compass}
             title={search ? 'No campaigns match your search' : 'No campaigns yet'}
             description={search ? 'Try a different search term.' : 'Check back soon — new campaigns are added regularly.'}
+            action={search ? (
+              <Button size="sm" variant="outline" onClick={() => setSearchInput('')}>
+                Clear search
+              </Button>
+            ) : undefined}
           />
         ) : (
           <>

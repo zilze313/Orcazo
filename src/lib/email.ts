@@ -145,20 +145,45 @@ export function loginCodeEmail(opts: { code: string }): { subject: string; html:
 export function creatorApprovalEmail(opts: { fullName: string; loginUrl: string }): { subject: string; html: string } {
   const { fullName, loginUrl } = opts;
   return {
-    subject: 'You\'re in — welcome to Orcazo 🎉',
+    subject: 'Welcome to Orcazo — your account is approved',
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
         <div style="text-align:center; margin-bottom: 24px;">
           <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
         </div>
-        <h1 style="font-size: 20px; margin: 0 0 16px;">Hi ${escapeHtml(fullName)}, you're approved! 🎉</h1>
+        <h1 style="font-size: 20px; margin: 0 0 16px;">Welcome aboard, ${escapeHtml(fullName)}!</h1>
         <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
-          Great news — your Orcazo creator account has been approved. You can now log in and start
-          exploring campaigns, submitting content, and earning money for your posts.
+          Your Orcazo creator account has been approved. We're excited to have you on the platform.
         </p>
-        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
-          Click the button below to sign in. You'll receive a verification code to your email when you do.
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px; font-weight: 600;">
+          Here's how to get started:
         </p>
+        <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 20px;">
+          <tr>
+            <td style="padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top;">
+              <div style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 24px; font-size: 13px; font-weight: 600;">1</div>
+            </td>
+            <td style="padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; line-height: 1.5;">
+              <strong>Sign in</strong> at <a href="${loginUrl}" style="color: #111;">orcazo.com</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top;">
+              <div style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 24px; font-size: 13px; font-weight: 600;">2</div>
+            </td>
+            <td style="padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; line-height: 1.5;">
+              <strong>Browse campaigns</strong> and pick one that fits your audience
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 12px; vertical-align: top;">
+              <div style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 24px; font-size: 13px; font-weight: 600;">3</div>
+            </td>
+            <td style="padding: 10px 12px; font-size: 14px; line-height: 1.5;">
+              <strong>Submit your first video</strong> and start earning
+            </td>
+          </tr>
+        </table>
         <div style="text-align: center; margin: 28px 0;">
           <a href="${loginUrl}"
              style="display:inline-block; padding: 12px 28px; background: #111; color: #fff;
@@ -177,27 +202,6 @@ export function creatorApprovalEmail(opts: { fullName: string; loginUrl: string 
   };
 }
 
-export function brandInquiryConfirmationEmail(opts: { brandName: string }): { subject: string; html: string } {
-  return {
-    subject: `Thanks for your interest, ${opts.brandName}`,
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
-        <div style="text-align:center; margin-bottom: 24px;">
-          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
-        </div>
-        <h1 style="font-size: 20px; margin: 0 0 16px;">Hello ${escapeHtml(opts.brandName)},</h1>
-        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
-          Thanks for your interest in Orcazo. We received your inquiry and a member of our team
-          will reach out within one business day to discuss your campaign goals.
-        </p>
-        <p style="font-size: 14px; line-height: 1.6; margin: 16px 0;">
-          In the meantime, if you have any specific questions, just reply to this email.
-        </p>
-        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
-      </div>
-    `.trim(),
-  };
-}
 
 function escapeHtml(s: string): string {
   return s
