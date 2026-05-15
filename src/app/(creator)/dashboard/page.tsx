@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   LineChart, ExternalLink, DollarSign, Clock, CheckCircle2,
-  Film, Hourglass, Eye,
+  Film, Hourglass, Eye, MessageSquare,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -255,10 +255,10 @@ export default function DashboardPage() {
                       </Badge>
                     </TableCell>
                     {/* Notes */}
-                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
+                    <TableCell>
                       {row.assist_notes
-                        ? <span title={row.assist_notes} className="block truncate">{row.assist_notes}</span>
-                        : <span>—</span>}
+                        ? <NoteCell note={row.assist_notes} />
+                        : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -307,5 +307,60 @@ function SummaryCard({
         ? <Skeleton className="h-8 w-24" />
         : <div className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{value ?? '—'}</div>}
     </Card>
+  );
+}
+
+function NoteCell({ note }: { note: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [coords, setCoords] = React.useState({ top: 0, left: 0, above: false });
+  const ref = React.useRef<HTMLButtonElement>(null);
+  const popoverRef = React.useRef<HTMLDivElement>(null);
+
+  const show = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const above = spaceBelow < 160;
+    setCoords({
+      top: above ? rect.top - 8 : rect.bottom + 8,
+      left: Math.min(rect.left, window.innerWidth - 288),
+      above,
+    });
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={ref}
+        onMouseEnter={show}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={show}
+        onBlur={() => setOpen(false)}
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+        <span>View note</span>
+      </button>
+      {open && (
+        <div
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            top: coords.above ? undefined : coords.top,
+            bottom: coords.above ? window.innerHeight - coords.top : undefined,
+            left: coords.left,
+            zIndex: 9999,
+            width: '272px',
+          }}
+          className="rounded-lg border bg-popover shadow-lg px-3.5 py-3 pointer-events-none"
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          <p className="text-xs font-medium text-muted-foreground mb-1.5">Note</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{note}</p>
+        </div>
+      )}
+    </>
   );
 }
