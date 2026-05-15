@@ -13,6 +13,7 @@ import { getAdminSession } from '@/lib/session';
 import { sendEmail, creatorRejectionEmail, creatorApprovalEmail } from '@/lib/email';
 import { log } from '@/lib/logger';
 import { emailSchema } from '@/lib/validators';
+import { SITE } from '@/config/site';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,9 @@ export async function POST(
     const parsed = approveBody.safeParse(json);
     if (!parsed.success) return fail(400, 'Invalid body — proxyEmail required');
     const proxyEmail = parsed.data.proxyEmail;
+    // Derive inbound address from proxy email local part + our inbound domain.
+    // e.g. alice@gmail.com → alice@orcazo.com
+    const inboundAddress = `${proxyEmail.split('@')[0]}@${SITE.inboundDomain}`;
 
     // Validate the proxy email exists in ManagedEmail and isn't already connected to someone else
     const managed = await db.managedEmail.findUnique({ where: { email: proxyEmail } });
@@ -63,6 +67,7 @@ export async function POST(
           data: {
             proxyEmail,
             proxyConnectedAt: new Date(),
+            inboundAddress,
             createdBy: session.adminId,
           },
         });
@@ -72,6 +77,7 @@ export async function POST(
             email: signup.publicEmail,
             proxyEmail,
             proxyConnectedAt: new Date(),
+            inboundAddress,
             note: `Approved from signup ${signup.id}`,
             createdBy: session.adminId,
           },

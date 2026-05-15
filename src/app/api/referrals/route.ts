@@ -1,8 +1,8 @@
-// GET /api/referrals → returns referral stats for the logged-in creator
-// Each creator's email is their implicit referral code (we look up
-// signups that used a code matching any ReferralCode associated with them).
-// For now, we return signups that used ANY referral code where the code
-// matches the creator's first name or email prefix.
+// GET /api/referrals → referral stats for the logged-in creator.
+//
+// On first call, auto-creates a unique ReferralCode owned by this creator.
+// The code is stored as: code = "{emailPrefix}-{last6ofEmployeeId}"
+// The note field is "creator:{employeeId}" so we can look it up cheaply.
 
 import { withEmployee, ok } from '@/lib/api';
 import { db } from '@/lib/db';
@@ -11,40 +11,36 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export const GET = withEmployee(async ({ session }) => {
-  // Get the employee's info
-  const employee = await db.employee.findUnique({
-    where: { id: session.employeeId },
-    select: { email: true, firstName: true },
-  });
+  // 1. Look up (or create) this creator's referral code
+  const ownerNote = `creator:${session.employeeId}`;
 
-  if (!employee) return ok({ referrals: [], totalReferred: 0, code: null });
-
-  // Find referral codes that might belong to this creator
-  // Strategy: match codes against the creator's email prefix or first name
-  const emailPrefix = employee.email.split('@')[0].toLowerCase();
-
-  // Look for referral codes containing the creator's email prefix
-  const codes = await db.referralCode.findMany({
-    where: {
-      code: {
-        contains: emailPrefix,
-        mode: 'insensitive',
-      },
-    },
+  let row = await db.referralCode.findFirst({
+    where: { note: ownerNote },
     select: { code: true },
   });
 
-  if (codes.length === 0) {
-    return ok({ referrals: [], totalReferred: 0, code: null });
+  if (!row) {
+    // Derive a short, readable code from email prefix + last 6 chars of employeeId
+    const emailPrefix = session.email
+      .split('@')[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')   // strip dots, plus signs, etc.
+      .slice(0, 12);                // cap length
+    const suffix = session.employeeId.slice(-6);
+    const code = `${emailPrefix}-${suffix}`;
+
+    // upsert in case of a race (two simultaneous requests)
+    row = await db.referralCode.upsert({
+      where: { code },
+      create: { code, note: ownerNote },
+      update: {},
+      select: { code: true },
+    });
   }
 
-  const codeValues = codes.map((c) => c.code);
-
-  // Count signups that used these referral codes
+  // 2. Count signups that used this code
   const signups = await db.creatorSignupRequest.findMany({
-    where: {
-      referralCode: { in: codeValues },
-    },
+    where: { referralCode: row.code },
     select: {
       id: true,
       fullName: true,
@@ -53,11 +49,11 @@ export const GET = withEmployee(async ({ session }) => {
       referralCode: true,
     },
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    take: 100,
   });
 
   return ok({
-    code: codeValues[0] ?? null,
+    code: row.code,
     totalReferred: signups.length,
     referrals: signups.map((s) => ({
       id: s.id,

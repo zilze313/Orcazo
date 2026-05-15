@@ -286,10 +286,15 @@ export default function AdminEmployeesPage() {
                     </TableCell>
                     <TableCell className="text-xs">
                       {e.firstSocial ? (
-                        <span className="inline-flex items-center gap-1">
+                        <a
+                          href={socialUrl(e.firstSocial.platform, e.firstSocial.handle)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 hover:underline"
+                        >
                           <span className="capitalize text-muted-foreground">{e.firstSocial.platform}</span>
                           <span className="font-medium">@{e.firstSocial.handle.replace(/^@/, "")}</span>
-                        </span>
+                        </a>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -374,4 +379,17 @@ function SortIcon({
   ) : (
     <ArrowDown className="h-3 w-3" />
   );
+}
+
+function socialUrl(platform: string, handle: string): string {
+  const h = handle.replace(/^@/, "");
+  switch (platform.toLowerCase()) {
+    case "instagram": return `https://www.instagram.com/${h}/`;
+    case "tiktok":    return `https://www.tiktok.com/@${h}`;
+    case "youtube":   return `https://www.youtube.com/@${h}`;
+    case "snapchat":  return `https://www.snapchat.com/add/${h}`;
+    case "x":         return `https://x.com/${h}`;
+    case "facebook":  return `https://www.facebook.com/${h}`;
+    default:          return `https://www.instagram.com/${h}/`;
+  }
 }

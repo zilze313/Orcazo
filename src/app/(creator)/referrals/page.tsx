@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Gift, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Users, Gift, CheckCircle2, Clock, XCircle, Copy, Check } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,25 +39,44 @@ export default function ReferralsPage() {
     queryFn: () => api.get<ReferralsResp>('/api/referrals'),
     staleTime: 60_000,
   });
+  const [copied, setCopied] = React.useState(false);
+
+  const copyCode = () => {
+    if (!query.data?.code) return;
+    navigator.clipboard.writeText(query.data.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <>
       <PageHeader
         title="Referrals"
-        description="Track signups from your referral code."
+        description="Share your code — anyone who signs up using it will appear here."
       />
       <div className="container max-w-4xl py-6 space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="p-5">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-2">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-3">
               <Gift className="h-4 w-4" /> Your referral code
             </div>
             {query.isLoading ? (
-              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-10 w-40" />
             ) : (
-              <div className="text-lg font-semibold font-mono">
-                {query.data?.code ?? <span className="text-muted-foreground text-sm font-sans">No code assigned</span>}
+              <div className="flex items-center gap-2">
+                <code className="text-base font-semibold font-mono bg-secondary px-3 py-1.5 rounded-md tracking-wide">
+                  {query.data?.code ?? '—'}
+                </code>
+                <button
+                  onClick={copyCode}
+                  disabled={!query.data?.code}
+                  className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40"
+                  title="Copy code"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </button>
               </div>
             )}
           </Card>

@@ -67,7 +67,17 @@ const THEMES = [
 
 const schema = z.object({
   platform: z.enum(platforms),
-  handle:   z.string().trim().min(1, 'Handle is required').max(80),
+  handle: z
+    .string()
+    .trim()
+    .min(1, 'Handle is required')
+    .max(80)
+    .transform((v) => v.startsWith('@') ? v.slice(1) : v)
+    .refine((v) => !/\s/.test(v), 'Handle cannot contain spaces')
+    .refine(
+      (v) => !v.includes('/') && !/^https?/i.test(v) && !/\.(com|net|org|io|me|co)\b/i.test(v),
+      'Enter a username only, not a URL',
+    ),
   language: z.enum(LANGUAGES).default('English'),
   theme:    z.enum(THEMES, { required_error: 'Pick a theme' }),
 });

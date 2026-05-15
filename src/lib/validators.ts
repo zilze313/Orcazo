@@ -153,7 +153,17 @@ export const addSocialBody = z.object({
     "x",
     "facebook",
   ]),
-  handle: z.string().trim().min(1).max(80),
+  handle: z
+    .string()
+    .trim()
+    .min(1, 'Handle is required')
+    .max(80)
+    .transform((v) => v.startsWith('@') ? v.slice(1) : v)
+    .refine((v) => !/\s/.test(v), 'Handle cannot contain spaces')
+    .refine(
+      (v) => !v.includes('/') && !/^https?/i.test(v) && !/\.(com|net|org|io|me|co)\b/i.test(v),
+      'Enter a username only, not a URL',
+    ),
   language: z.string().trim().min(1).max(40).default("English"),
   theme: z.string().trim().min(1).max(80),
 });
