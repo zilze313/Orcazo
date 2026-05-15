@@ -42,6 +42,7 @@ interface DashItem {
   seven_days: boolean;
   payment_platform: string | null;
   status?: string;
+  assist_notes?: string | null;
 }
 
 interface DashResp {
@@ -186,6 +187,7 @@ export default function DashboardPage() {
                   <TableHead className="text-right whitespace-nowrap">Earnings</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Timely</TableHead>
                   <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -251,6 +253,12 @@ export default function DashboardPage() {
                       <Badge variant={statusVariant(row.status)} className="text-[10px] whitespace-nowrap capitalize">
                         {row.status || '—'}
                       </Badge>
+                    </TableCell>
+                    {/* Notes */}
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
+                      {row.assist_notes
+                        ? <span title={row.assist_notes} className="block truncate">{row.assist_notes}</span>
+                        : <span>—</span>}
                     </TableCell>
                   </TableRow>
                 ))}
