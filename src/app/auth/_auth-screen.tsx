@@ -122,6 +122,7 @@ function LoginForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   const [email, setEmail] = React.useState("");
   const [cooldown, setCooldown] = React.useState(0);
   const [resending, setResending] = React.useState(false);
+  const [autoFilling, setAutoFilling] = React.useState(false);
 
   const emailHook = useForm<LoginEmailForm>({
     resolver: zodResolver(loginEmailSchema),
@@ -149,7 +150,39 @@ function LoginForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
     setEmail(values.email);
     setStep("code");
     setCooldown(RESEND_COOLDOWN);
-    toast.success("Code sent — check your inbox.");
+
+    if (data.autoLogin) {
+      // Auto-login mode: poll for OTP, auto-fill, and submit without user action
+      toast.success("Logging you in automatically…");
+      setAutoFilling(true);
+      pollForOtp(values.email);
+    } else {
+      toast.success("Code sent — check your inbox.");
+    }
+  }
+
+  function pollForOtp(emailAddr: string) {
+    let attempts = 0;
+    const MAX = 30; // poll up to 60 seconds (2s interval)
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const r = await fetch(`/api/auth/pending-otp?email=${encodeURIComponent(emailAddr)}`);
+        const d = await r.json();
+        if (d.otp) {
+          clearInterval(interval);
+          codeHook.setValue("code", d.otp);
+          setAutoFilling(false);
+          // Auto-submit
+          await verify({ code: d.otp });
+        }
+      } catch { /* ignore, keep polling */ }
+      if (attempts >= MAX) {
+        clearInterval(interval);
+        setAutoFilling(false);
+        toast.error("Auto-login timed out. Please enter the code manually.");
+      }
+    }, 2000);
   }
 
   const resendCode = React.useCallback(async () => {
@@ -223,10 +256,17 @@ function LoginForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
   return (
     <form onSubmit={codeHook.handleSubmit(verify)} className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        We sent a code to <strong className="text-foreground">{email}</strong>.{" "}
-        It can take 15–20 seconds to arrive.
-      </p>
+      {autoFilling ? (
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+          Logging you in automatically…
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          We sent a code to <strong className="text-foreground">{email}</strong>.{" "}
+          It can take 15–20 seconds to arrive.
+        </p>
+      )}
       <div className="space-y-2">
         <Label htmlFor="login-code">Verification code</Label>
         <Input

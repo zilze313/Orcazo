@@ -16,6 +16,8 @@ import {
   Clock,
   CheckCircle2,
   History,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -49,16 +51,19 @@ interface PayoutItem {
   id: string;
   createdAt: string;
   status: string;
-  amountSubmitted: number;
-  fee: number | null;
+  amountAtRequest: number;
   amountPaid: number | null;
-  currency: string;
-  paymentMethod?: string;
+  penalty: number | null;
+  adminNote: string | null;
+  method: "BANK" | "CRYPTO";
+  paidAt: string | null;
+  rejectedAt: string | null;
 }
 
 interface PayoutsResp {
   history: PayoutItem[];
   waitingPayment: number;
+  totalPaid: number;
   minPayout: number;
   canRequest: boolean;
   pending: { id: string; status: string; createdAt: string } | null;
@@ -110,11 +115,20 @@ function statusVariant(
 ): "success" | "warning" | "destructive" | "secondary" | "default" {
   const x = s.toUpperCase();
   if (x === "PAID") return "success";
-  if (x === "DO_NOT_PAY" || x === "CANCELLED" || x === "REJECTED")
-    return "destructive";
-  if (x === "IN_PROGRESS" || x === "PENDING" || x === "REQUESTED")
-    return "warning";
+  if (x === "REJECTED" || x === "CANCELLED") return "destructive";
+  if (x === "IN_PROGRESS" || x === "REQUESTED") return "warning";
   return "secondary";
+}
+
+function statusLabel(s: string): string {
+  const map: Record<string, string> = {
+    REQUESTED: "Requested",
+    IN_PROGRESS: "In progress",
+    PAID: "Paid",
+    REJECTED: "Rejected",
+    CANCELLED: "Cancelled",
+  };
+  return map[s.toUpperCase()] ?? s;
 }
 
 export default function PayoutsPage() {
@@ -131,7 +145,6 @@ export default function PayoutsPage() {
     if (query.error && isUpstreamExpired(query.error)) router.replace("/login");
   }, [query.error, router]);
 
-  // Decide initial method from saved details
   const [method, setMethod] = React.useState<PayoutMethod>("BANK");
   React.useEffect(() => {
     if (query.data?.savedDetails) setMethod(query.data.savedDetails.method);
@@ -162,24 +175,24 @@ export default function PayoutsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
             icon={DollarSign}
-            label="Awaiting payment"
+            label="Available balance"
             value={query.data ? formatMoney(query.data.waitingPayment) : null}
             loading={query.isLoading}
             tone="warning"
           />
           <StatCard
-            icon={Wallet}
-            label="Minimum payout"
-            value={query.data ? formatMoney(query.data.minPayout) : null}
+            icon={CheckCircle2}
+            label="Total paid out"
+            value={query.data ? formatMoney(query.data.totalPaid) : null}
             loading={query.isLoading}
-            tone="muted"
+            tone="success"
           />
           <StatCard
             icon={Clock}
             label="Pending request"
             value={
               query.data?.pending
-                ? query.data.pending.status
+                ? statusLabel(query.data.pending.status)
                 : query.data
                   ? "None"
                   : null
@@ -246,42 +259,63 @@ export default function PayoutsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead className="text-right">
-                      Amount submitted
-                    </TableHead>
-                    <TableHead className="text-right">Fee</TableHead>
-                    <TableHead className="text-right">Amount paid</TableHead>
+                    <TableHead className="text-right">Requested</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right">Penalty</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.data!.history.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(p.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">
-                        {formatMoney(p.amountSubmitted)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
-                        {p.fee != null ? formatMoney(p.fee) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {p.amountPaid != null ? (
-                          formatMoney(p.amountPaid)
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={statusVariant(p.status)}
-                          className="text-[10px] capitalize whitespace-nowrap"
-                        >
-                          {p.status.replace(/_/g, " ").toLowerCase()}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={p.id}>
+                      <TableRow>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(p.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatMoney(p.amountAtRequest)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {p.amountPaid != null ? (
+                            <span className="text-green-600 dark:text-green-400 font-medium">
+                              {formatMoney(p.amountPaid)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {p.penalty != null && p.penalty > 0 ? (
+                            <span className="text-orange-600 dark:text-orange-400 text-xs">
+                              {formatMoney(p.penalty)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={statusVariant(p.status)}
+                            className="text-[10px] whitespace-nowrap"
+                          >
+                            {statusLabel(p.status)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      {p.adminNote && (
+                        <TableRow className="bg-muted/20">
+                          <TableCell colSpan={5} className="py-1.5 px-4">
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              {p.status === 'REJECTED'
+                                ? <AlertCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+                                : <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
+                              }
+                              <span className="italic">{p.adminNote}</span>
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>
@@ -333,11 +367,21 @@ function RequestForm({
     form.setValue("method", method as FormData["method"]);
   }, [method, form]);
 
+  const belowMin = waitingPayment < minPayout;
+
   return (
     <Card className="p-5">
       <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
         <Send className="h-4 w-4" /> Request a payout
       </h2>
+
+      {belowMin && (
+        <div className="mb-4 flex items-center gap-2 rounded-md bg-muted/50 border px-3 py-2 text-xs text-muted-foreground">
+          <Wallet className="h-3.5 w-3.5 flex-shrink-0" />
+          Minimum balance of {formatMoney(minPayout)} required to request a payout.
+          Your current balance is {formatMoney(waitingPayment)}.
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4">
         <Button
@@ -360,8 +404,8 @@ function RequestForm({
 
       <form
         onSubmit={form.handleSubmit((v) => {
-          if (waitingPayment < minPayout) {
-            toast.error(`Minimum balance of $${minPayout} required to withdraw.`);
+          if (belowMin) {
+            toast.error(`Minimum balance of ${formatMoney(minPayout)} required to withdraw.`);
             return;
           }
           onSubmit(v);
@@ -457,7 +501,7 @@ function RequestForm({
           />
         </Field>
 
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="w-full" disabled={submitting || belowMin}>
           {submitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (

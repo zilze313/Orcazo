@@ -1,21 +1,23 @@
-// GET  /api/payouts  → upstream payout history (2× display rate) + own
-//                       saved payout details from last request (auto-fill) +
-//                       current waiting-payment amount (gates the request button)
-// POST /api/payouts  → create a new PayoutRequest (server enforces $10 minimum)
+// GET  /api/payouts  → payout history from OUR DB (not upstream) + current
+//                       balance available for withdrawal
+// POST /api/payouts  → create a new PayoutRequest
 //
-// 2× display rate: every monetary value is doubled before delivery to the browser.
+// Earnings multiplier: all balance/earnings figures use the admin-configured
+// multiplier from AdminSetting (key: earningsMultiplier).
 //
-// Baseline isolation: payout history is filtered to entries on/after
-// proxyConnectedAt; waitingPayment is adjusted by subtracting the baseline
-// captured at first dashboard/payouts load.
+// Manual payout tracking: history comes exclusively from our PayoutRequest table.
+// The "paid" stat = sum of amountPaid on PAID requests for this employee.
+// Available balance = (upstream waitingPayment - baseline) * multiplier
+//                   - sum(amountPaid on PAID payout requests)
 
 import { Prisma } from '@prisma/client';
 import { withEmployee, ok, parseBody, fail } from '@/lib/api';
-import { fetchDash, fetchPayouts } from '@/lib/affiliatenetwork/client';
+import { fetchDash } from '@/lib/affiliatenetwork/client';
 import { payoutRequestBody } from '@/lib/validators';
 import { limits } from '@/lib/ratelimit';
 import { db } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { getEarningsMultiplier } from '@/lib/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,7 +33,6 @@ function num(v: unknown): number {
   return 0;
 }
 
-/** Convert a Prisma Decimal (or any stringify-able value) to a plain number. */
 function decNum(v: unknown): number {
   if (v == null) return 0;
   const n = parseFloat(String(v));
@@ -39,14 +40,7 @@ function decNum(v: unknown): number {
 }
 
 export const GET = withEmployee(async ({ session }) => {
-  // Five things in parallel:
-  //   1. Upstream payout history
-  //   2. Live waiting-payment from upstream dash
-  //   3. Last saved payout details (auto-fill)
-  //   4. Allowlist row (proxyConnectedAt cutoff)
-  //   5. Employee baseline fields
-  const [payoutsResp, dashResp, lastReq, allowlistRow, employee] = await Promise.all([
-    fetchPayouts(session.affiliateNetworkToken, session.affiliateNetworkCookies).catch(() => null),
+  const [dashResp, lastReq, employee, payoutHistory, paidAggregate, M] = await Promise.all([
     fetchDash(
       session.affiliateNetworkToken,
       { status: 'all', campaignName: 'all', onlySevenDays: false },
@@ -56,23 +50,42 @@ export const GET = withEmployee(async ({ session }) => {
       where: { employeeId: session.employeeId },
       orderBy: { createdAt: 'desc' },
     }),
-    db.allowlist.findUnique({
-      where: { email: session.email },
-      select: { proxyConnectedAt: true },
-    }),
     db.employee.findUnique({
       where: { id: session.employeeId },
       select: {
-        baselineTotalPaid:      true,
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
+        baselineTotalPaid:      true,
         baselineCapturedAt:     true,
         showFullHistory:        true,
       },
     }),
+    // Payout history from our own DB — no upstream fetch needed
+    db.payoutRequest.findMany({
+      where: { employeeId: session.employeeId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        method: true,
+        amountAtRequest: true,
+        amountPaid: true,
+        penalty: true,
+        adminNote: true,
+        paidAt: true,
+        rejectedAt: true,
+      },
+    }),
+    // Sum of all amounts we've actually paid this employee
+    db.payoutRequest.aggregate({
+      where: { employeeId: session.employeeId, status: 'PAID' },
+      _sum: { amountPaid: true },
+    }),
+    getEarningsMultiplier(),
   ]);
 
-  // ── Lazy baseline capture (if creator arrives here before the dashboard) ──
+  // ── Lazy baseline capture ─────────────────────────────────────────────────
   if (employee && !employee.baselineCapturedAt && dashResp != null) {
     db.employee.update({
       where: { id: session.employeeId },
@@ -85,42 +98,21 @@ export const GET = withEmployee(async ({ session }) => {
     }).catch(() => {});
   }
 
-  // ── Cutoff filter ─────────────────────────────────────────────────────────
+  // ── Baseline-adjusted balance ─────────────────────────────────────────────
   const showFull = employee?.showFullHistory ?? false;
-  const cutoff = showFull ? null : (allowlistRow?.proxyConnectedAt ?? null);
-  const cutoffMs = cutoff ? cutoff.getTime() : 0;
-
-  // Filter payout history to entries on/after the connection date.
-  // Double every monetary field (2× display rate); pass through the rest.
-  // Fee is NOT doubled — fees aren't earnings, they're real costs.
-  const history = (payoutsResp?.payouts ?? [])
-    .filter((p) => {
-      if (!cutoff) return true;
-      const ts = new Date(p.createdAt).getTime();
-      return Number.isFinite(ts) && ts >= cutoffMs;
-    })
-    .map((p) => ({
-      id: p.id,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      status: p.status,
-      paymentMethod: p.paymentMethod,
-      amountSubmitted: num(p.amountSubmitted) * 2,
-      fee:             p.fee != null ? num(p.fee) : null,
-      amountPaid:      p.amountPaid != null ? num(p.amountPaid) * 2 : null,
-      currency: p.currency,
-    }));
-
-  // ── Baseline-adjusted waitingPayment ──────────────────────────────────────
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
-  const bReview  = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
-  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * 2;
+  // Available balance = (upstream waitingPayment - baseline) * M
+  //                   - total we've already paid them from our DB
+  const grossWaiting = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const totalPaidByUs = decNum(paidAggregate._sum.amountPaid);
+  const waitingPayment = Math.max(0, grossWaiting - totalPaidByUs);
 
-  // Cache adjusted waiting-payment on the Employee row
+  // Cache adjusted waiting-payment
   if (dashResp != null) {
-    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) * 2;
+    const bReview = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview) : decNum(employee?.baselineWaitingReview));
+    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) * M;
     db.employee.update({
       where: { id: session.employeeId },
       data: {
@@ -136,18 +128,26 @@ export const GET = withEmployee(async ({ session }) => {
     ? { method: lastReq.method, details: lastReq.details }
     : null;
 
-  // Pending request status — block submitting another while one is open
-  const pending = await db.payoutRequest.findFirst({
-    where: {
-      employeeId: session.employeeId,
-      status: { in: ['REQUESTED', 'IN_PROGRESS'] },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  // Pending request — block submitting another while one is open
+  const pending = payoutHistory.find((p) =>
+    p.status === 'REQUESTED' || p.status === 'IN_PROGRESS'
+  );
 
   return ok({
-    history,
+    history: payoutHistory.map((p) => ({
+      id:              p.id,
+      createdAt:       p.createdAt,
+      status:          p.status,
+      method:          p.method,
+      amountAtRequest: decNum(p.amountAtRequest),
+      amountPaid:      p.amountPaid != null ? decNum(p.amountPaid) : null,
+      penalty:         p.penalty   != null ? decNum(p.penalty)   : null,
+      adminNote:       p.adminNote ?? null,
+      paidAt:          p.paidAt ?? null,
+      rejectedAt:      p.rejectedAt ?? null,
+    })),
     waitingPayment,
+    totalPaid: Math.round(totalPaidByUs * 100) / 100,
     minPayout: MIN_PAYOUT_USD,
     canRequest: waitingPayment >= MIN_PAYOUT_USD && !pending,
     pending: pending ? { id: pending.id, status: pending.status, createdAt: pending.createdAt } : null,
@@ -159,9 +159,7 @@ export const POST = withEmployee(async ({ req, session }) => {
   const parsed = await parseBody(req, payoutRequestBody);
   if ('errorResponse' in parsed) return parsed.errorResponse;
 
-  // Pull live waiting-payment AT request time. Trust upstream over our cache.
-  // Also fetch employee baseline to correctly compute the adjusted amount.
-  const [dashResp, employee] = await Promise.all([
+  const [dashResp, employee, paidAggregate, M] = await Promise.all([
     fetchDash(
       session.affiliateNetworkToken,
       { status: 'all', campaignName: 'all', onlySevenDays: false },
@@ -171,23 +169,26 @@ export const POST = withEmployee(async ({ req, session }) => {
       where: { id: session.employeeId },
       select: { baselineWaitingPayment: true, baselineCapturedAt: true, showFullHistory: true },
     }),
+    db.payoutRequest.aggregate({
+      where: { employeeId: session.employeeId, status: 'PAID' },
+      _sum: { amountPaid: true },
+    }),
+    getEarningsMultiplier(),
   ]);
 
   const showFull = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
-  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
-  const waitingPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * 2;
+  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : parseFloat(String(employee?.baselineWaitingPayment ?? 0)) || 0);
+  const grossWaiting = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const totalPaidByUs = parseFloat(String(paidAggregate._sum.amountPaid ?? 0)) || 0;
+  const waitingPayment = Math.max(0, grossWaiting - totalPaidByUs);
 
   if (waitingPayment < MIN_PAYOUT_USD) {
-    return fail(400, `You need at least $${MIN_PAYOUT_USD} in awaiting payment to request a payout.`, 'BELOW_MIN');
+    return fail(400, `You need at least $${MIN_PAYOUT_USD} available to request a payout.`, 'BELOW_MIN');
   }
 
-  // Block parallel pending requests
   const pending = await db.payoutRequest.findFirst({
-    where: {
-      employeeId: session.employeeId,
-      status: { in: ['REQUESTED', 'IN_PROGRESS'] },
-    },
+    where: { employeeId: session.employeeId, status: { in: ['REQUESTED', 'IN_PROGRESS'] } },
   });
   if (pending) {
     return fail(400, 'You already have a payout request in progress.', 'PENDING_EXISTS');
@@ -196,17 +197,9 @@ export const POST = withEmployee(async ({ req, session }) => {
   const data = parsed.data;
   let details: Record<string, unknown>;
   if (data.method === 'BANK') {
-    details = {
-      holderName: data.holderName,
-      bankName:   data.bankName,
-      iban:       data.iban,
-      swift:      data.swift,
-    };
+    details = { holderName: data.holderName, bankName: data.bankName, iban: data.iban, swift: data.swift };
   } else {
-    details = {
-      network: data.network,
-      address: data.address,
-    };
+    details = { network: data.network, address: data.address };
   }
 
   const created = await db.payoutRequest.create({
@@ -220,6 +213,5 @@ export const POST = withEmployee(async ({ req, session }) => {
   });
 
   log.info('payout.requested', { employeeId: session.employeeId, id: created.id, amount: waitingPayment });
-
   return ok({ ok: true, id: created.id });
 }, { rateLimit: limits.submitPost });

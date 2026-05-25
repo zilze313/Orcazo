@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
   search:   z.string().trim().max(100).optional(),
-  status:   z.enum(['all', 'REQUESTED', 'IN_PROGRESS', 'PAID', 'CANCELLED']).default('all'),
+  status:   z.enum(['all', 'REQUESTED', 'IN_PROGRESS', 'PAID', 'REJECTED', 'CANCELLED']).default('all'),
   page:     z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -53,6 +53,8 @@ export const GET = withAdmin(async ({ req }) => {
     entries: entries.map((e) => ({
       ...e,
       amountAtRequest: e.amountAtRequest.toString(),
+      amountPaid:  e.amountPaid  != null ? e.amountPaid.toString()  : null,
+      penalty:     e.penalty     != null ? e.penalty.toString()     : null,
     })),
     pagination: {
       page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)),

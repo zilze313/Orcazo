@@ -41,6 +41,12 @@ enum PayoutStatus {
   REJECTED
 }
 
+enum ReferralClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Allowlist {
   id                  String   @id @default(cuid())
   // Public-facing email — what the creator types at /login.
@@ -110,10 +116,11 @@ model Employee {
   baselineSocialIds        String?
   adminNotes               String?             @db.Text
 
-  sessions    Session[]
-  submissions SubmissionAudit[]
-  payouts     PayoutRequest[]
-  messages    ChatMessage[]
+  sessions        Session[]
+  submissions     SubmissionAudit[]
+  payouts         PayoutRequest[]
+  messages        ChatMessage[]
+  referralClaims  ReferralClaim[]
 
   @@index([email])
   @@index([lastLoginAt(sort: Desc)])
@@ -267,7 +274,7 @@ model CampaignRules {
 }
 
 /// Creator payout requests. Status workflow:
-///   REQUESTED → IN_PROGRESS → PAID  (or → CANCELLED at any point)
+///   REQUESTED → PAID (admin approves with amount) or → REJECTED (admin enters reason)
 model PayoutRequest {
   id              String       @id @default(cuid())
   employeeId      String
@@ -275,14 +282,21 @@ model PayoutRequest {
   method          PayoutMethod
   /// JSON details: bank ⇒ { iban, swift, holderName, bankName }; crypto ⇒ { network, address }
   details         Json
-  /// Snapshot of totalWaitingPayment at request time (already halved for commission). For audit.
+  /// Snapshot of totalWaitingPayment at request time (post-multiplier). For audit.
   amountAtRequest Decimal      @db.Decimal(12, 2)
   status          PayoutStatus @default(REQUESTED)
   notes           String?      @db.Text
+  /// Amount admin actually paid (may differ from amountAtRequest)
+  amountPaid      Decimal?     @db.Decimal(12, 2)
+  /// Penalty = amountAtRequest − amountPaid (auto-computed when admin approves)
+  penalty         Decimal?     @db.Decimal(12, 2)
+  /// Admin note: rejection reason or other comment
+  adminNote       String?      @db.Text
   createdAt       DateTime     @default(now())
-  inProgressAt   DateTime?
-  paidAt         DateTime?
-  cancelledAt    DateTime?
+  inProgressAt    DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  rejectedAt      DateTime?
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -364,4 +378,43 @@ model HomepageVideo {
   updatedAt DateTime @updatedAt
 
   @@index([active, order])
+}
+
+/// Key-value store for admin-configurable platform settings.
+/// Known keys: earningsMultiplier, autoLoginEnabled, referralThreshold, referralReward
+model AdminSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+/// A creator's claim for their referral reward once the threshold is met.
+model ReferralClaim {
+  id           String              @id @default(cuid())
+  employeeId   String
+  employee     Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  status       ReferralClaimStatus @default(PENDING)
+  /// Referral count at time of claim
+  referralCount Int
+  /// Threshold that was active at time of claim
+  threshold    Int
+  /// Reward amount configured at time of claim
+  rewardAmount Decimal             @db.Decimal(12, 2)
+  adminNote    String?             @db.Text
+  createdAt    DateTime            @default(now())
+  resolvedAt   DateTime?
+
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+/// Log of admin bulk email broadcasts sent to all creators.
+model BroadcastEmail {
+  id             String   @id @default(cuid())
+  subject        String
+  bodyHtml       String   @db.Text
+  recipientCount Int
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
 }

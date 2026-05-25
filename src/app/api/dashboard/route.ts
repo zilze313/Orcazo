@@ -17,6 +17,7 @@ import { fetchDash, fetchSocials } from '@/lib/affiliatenetwork/client';
 import { limits } from '@/lib/ratelimit';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { getEarningsMultiplier } from '@/lib/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,7 +58,7 @@ export const GET = withEmployee(async ({ req, session }) => {
   const sortParam = url.searchParams.get('sort') as SortKey | null;
   const sort: SortKey = sortParam && SORTS.includes(sortParam) ? sortParam : 'earnings';
 
-  const [resp, allowlistRow, employee] = await Promise.all([
+  const [resp, allowlistRow, employee, M] = await Promise.all([
     fetchDash(
       session.affiliateNetworkToken,
       { status, campaignName, onlySevenDays },
@@ -77,6 +78,7 @@ export const GET = withEmployee(async ({ req, session }) => {
         showFullHistory:        true,
       },
     }),
+    getEarningsMultiplier(),
   ]);
 
   // ── Lazy baseline capture ─────────────────────────────────────────────────
@@ -136,10 +138,10 @@ export const GET = withEmployee(async ({ req, session }) => {
   // Double all per-item monetary fields before delivery (2× display rate)
   const items = rawItems.map((i) => ({
     ...i,
-    base:     num(i.base)     * 2,
-    cap:      num(i.cap)      * 2,
-    cpm:      num(i.cpm)      * 2,
-    earnings: num(i.earnings) * 2,
+    base:     num(i.base)     * M,
+    cap:      num(i.cap)      * M,
+    cpm:      num(i.cpm)      * M,
+    earnings: num(i.earnings) * M,
   }));
 
   // ── Baseline-adjusted summary totals ─────────────────────────────────────
@@ -152,9 +154,9 @@ export const GET = withEmployee(async ({ req, session }) => {
 
   const summary = {
     totalCount:          total,
-    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * 2,
-    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) * 2,
-    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    * 2,
+    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * M,
+    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) * M,
+    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    * M,
   };
 
   return ok({

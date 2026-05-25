@@ -16,6 +16,7 @@ import {
 } from "@/lib/affiliatenetwork/types";
 import { limits } from "@/lib/ratelimit";
 import { db } from "@/lib/db";
+import { getEarningsMultiplier } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,22 +31,23 @@ function num(v: unknown): number {
   return 0;
 }
 
-/** Double every monetary field in a rates object (2× display rate). */
+/** Multiply every monetary field in a rates object by the configured multiplier. */
 function doubleRates(
   rates: AnCampaignRates | undefined,
+  M: number,
 ): AnCampaignRates | undefined {
   if (!rates) return rates;
 
   const standards = rates.standards
     ? {
         ...rates.standards,
-        base: num(rates.standards.base) * 2,
-        cap: num(rates.standards.cap) * 2,
+        base: num(rates.standards.base) * M,
+        cap: num(rates.standards.cap) * M,
       }
     : rates.standards;
 
   const range = rates.range
-    ? { min: num(rates.range.min) * 2, max: num(rates.range.max) * 2 }
+    ? { min: num(rates.range.min) * M, max: num(rates.range.max) * M }
     : rates.range;
 
   // details: Record<platform, Record<language, AnPlatformLanguageRate>>
@@ -58,9 +60,9 @@ function doubleRates(
         const v = vals as AnPlatformLanguageRate;
         bucket[lang] = {
           ...v,
-          base: v.base != null ? num(v.base) * 2 : v.base,
-          cap: v.cap != null ? num(v.cap) * 2 : v.cap,
-          cpm: v.cpm != null ? num(v.cpm) * 2 : v.cpm,
+          base: v.base != null ? num(v.base) * M : v.base,
+          cap: v.cap != null ? num(v.cap) * M : v.cap,
+          cpm: v.cpm != null ? num(v.cpm) * M : v.cpm,
         };
       }
       details[platform] = bucket;
@@ -85,7 +87,7 @@ export const GET = withEmployee(
       Math.max(1, parseInt(url.searchParams.get("pageSize") || "24", 10)),
     );
 
-    const [campaignsResp, appsResp, customRulesRows, hiddenRows, overrideRows] =
+    const [campaignsResp, appsResp, customRulesRows, hiddenRows, overrideRows, M] =
       await Promise.all([
         fetchCampaigns(
           session.affiliateNetworkToken,
@@ -103,6 +105,7 @@ export const GET = withEmployee(
           select: { campaignPublicId: true },
         }),
         db.campaignOverride.findMany(),
+        getEarningsMultiplier(),
       ]);
 
     const customRulesMap = new Map(
@@ -144,7 +147,7 @@ export const GET = withEmployee(
 
     const items = slice.map((c) => {
       const ov = overrideMap.get(c.publicId);
-      let rates = doubleRates(c.rates);
+      let rates = doubleRates(c.rates, M);
 
       // Apply admin rate overrides (displayCpm / displayBase / displayCap).
       // These replace the post-multiplier values so the creator sees exactly
@@ -191,9 +194,9 @@ export const GET = withEmployee(
         approvalRate: c.approvalRate ?? null,
         dateEnd: c.dateEnd ?? null,
         inviteOnly: c.inviteOnly ?? false,
-        totalBudget: c.totalBudget != null ? num(c.totalBudget) * 2 : null,
+        totalBudget: c.totalBudget != null ? num(c.totalBudget) * M : null,
         budgetRemaining:
-          c.budgetRemaining != null ? num(c.budgetRemaining) * 2 : null,
+          c.budgetRemaining != null ? num(c.budgetRemaining) * M : null,
         applications: appsByCampaign.get(c.publicId) ?? [],
       };
     });

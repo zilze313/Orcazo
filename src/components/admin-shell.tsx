@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
-  Activity, Film, UserCog,
+  Activity, Film, UserCog, Settings, Gift, Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -46,6 +46,9 @@ const NAV = [
   { href: '/admin/homepage-videos',  label: 'Homepage Videos',    icon: Film,            permission: 'content' },
   { href: '/admin/health',           label: 'Health',             icon: Activity,        permission: 'health' },
   { href: '/admin/admins',           label: 'Admins',             icon: UserCog,         permission: 'admins' },
+  { href: '/admin/referral-claims',  label: 'Referral Claims',    icon: Gift,            permission: 'creators' },
+  { href: '/admin/broadcast-email',  label: 'Broadcast Email',    icon: Send,            permission: 'content' },
+  { href: '/admin/settings',         label: 'Settings',           icon: Settings,        permission: 'admins' },
 ] as const;
 
 export function AdminShell({
