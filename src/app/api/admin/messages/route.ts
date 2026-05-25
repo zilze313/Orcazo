@@ -25,25 +25,38 @@ export const GET = withAdmin(async () => {
     },
   });
 
-  // Unread counts per employee (creator messages admin hasn't read)
-  const unread = await db.chatMessage.groupBy({
-    by: ['employeeId'],
-    _count: { id: true },
-    where: { fromAdmin: false, readAt: null },
-  });
-  const unreadMap = new Map(unread.map((r) => [r.employeeId, r._count.id]));
+  // Prefer the name the creator entered during signup over AffiliateNetwork names
+  const emails = employees.map((e) => e.email);
+  const [unread, signupRequests] = await Promise.all([
+    db.chatMessage.groupBy({
+      by: ['employeeId'],
+      _count: { id: true },
+      where: { fromAdmin: false, readAt: null },
+    }),
+    db.creatorSignupRequest.findMany({
+      where: { publicEmail: { in: emails } },
+      select: { publicEmail: true, fullName: true },
+    }),
+  ]);
+
+  const unreadMap   = new Map(unread.map((r) => [r.employeeId, r._count.id]));
+  const signupNames = new Map(signupRequests.map((r) => [r.publicEmail, r.fullName]));
 
   const conversations = employees
     .filter((e) => e.messages.length > 0)
-    .map((e) => ({
-      employeeId:   e.id,
-      email:        e.email,
-      displayName:  e.firstName ? `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}` : e.email,
-      lastMessage:  e.messages[0].content.slice(0, 80),
-      lastAt:       e.messages[0].createdAt,
-      lastFromAdmin: e.messages[0].fromAdmin,
-      unreadCount:  unreadMap.get(e.id) ?? 0,
-    }))
+    .map((e) => {
+      const signupName = signupNames.get(e.email);
+      const afName = e.firstName ? `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}` : null;
+      return {
+        employeeId:    e.id,
+        email:         e.email,
+        displayName:   signupName ?? afName ?? e.email,
+        lastMessage:   e.messages[0].content.slice(0, 80),
+        lastAt:        e.messages[0].createdAt,
+        lastFromAdmin: e.messages[0].fromAdmin,
+        unreadCount:   unreadMap.get(e.id) ?? 0,
+      };
+    })
     .sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
   return ok({ conversations });

@@ -18,7 +18,6 @@ import {
   Newspaper,
   MessageCircle,
   PlayCircle,
-  DollarSign,
   Gift,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,14 +66,7 @@ export function CreatorShell({
 
   const { theme, setTheme } = useTheme();
   const initials = user.email.slice(0, 1).toUpperCase();
-  const [balance, setBalance] = React.useState<number | null>(null);
   const [unreadCount, setUnreadCount] = React.useState(0);
-
-  React.useEffect(() => {
-    api.get<{ waitingPayment: number }>('/api/payouts')
-      .then((d) => setBalance(d.waitingPayment))
-      .catch(() => {});
-  }, []);
 
   React.useEffect(() => {
     const fetchUnread = () => {
@@ -144,17 +136,6 @@ export function CreatorShell({
             );
           })}
         </nav>
-        {balance !== null && (
-          <div className="border-t px-4 py-3">
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 text-emerald-500" />
-              <span className="text-muted-foreground">Balance</span>
-              <span className="ml-auto font-semibold text-emerald-600 dark:text-emerald-400">
-                ${balance.toFixed(2)}
-              </span>
-            </div>
-          </div>
-        )}
         <div className="border-t p-3">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">

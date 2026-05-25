@@ -8,7 +8,9 @@
 // Manual payout tracking: history comes exclusively from our PayoutRequest table.
 // The "paid" stat = sum of amountPaid on PAID requests for this employee.
 // Available balance = (upstream waitingPayment - baseline) * multiplier
-//                   - sum(amountPaid on PAID payout requests)
+//                   - sum(amountAtRequest on PAID payout requests)
+// Note: amountAtRequest (not amountPaid) is deducted from balance so that
+// penalties are permanently consumed — the creator never gets penalised amount back.
 
 import { Prisma } from '@prisma/client';
 import { withEmployee, ok, parseBody, fail } from '@/lib/api';
@@ -77,10 +79,12 @@ export const GET = withEmployee(async ({ session }) => {
         rejectedAt: true,
       },
     }),
-    // Sum of all amounts we've actually paid this employee
+    // Sums for PAID requests:
+    // - amountPaid     → what we actually sent the creator (shown as "Total paid out")
+    // - amountAtRequest → full amount deducted from balance (penalties are gone permanently)
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
-      _sum: { amountPaid: true },
+      _sum: { amountPaid: true, amountAtRequest: true },
     }),
     getEarningsMultiplier(),
   ]);
@@ -104,10 +108,13 @@ export const GET = withEmployee(async ({ session }) => {
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
 
   // Available balance = (upstream waitingPayment - baseline) * M
-  //                   - total we've already paid them from our DB
-  const grossWaiting = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
-  const totalPaidByUs = decNum(paidAggregate._sum.amountPaid);
-  const waitingPayment = Math.max(0, grossWaiting - totalPaidByUs);
+  //                   - sum(amountAtRequest on PAID requests)
+  // The full amountAtRequest is deducted — penalties are permanently gone,
+  // not returned to the creator's balance.
+  const grossWaiting   = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const totalPaidByUs  = decNum(paidAggregate._sum.amountPaid);      // for "Total paid out" stat
+  const totalDeducted  = decNum(paidAggregate._sum.amountAtRequest);  // for balance deduction
+  const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
 
   // Cache adjusted waiting-payment
   if (dashResp != null) {
@@ -171,7 +178,7 @@ export const POST = withEmployee(async ({ req, session }) => {
     }),
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
-      _sum: { amountPaid: true },
+      _sum: { amountAtRequest: true },
     }),
     getEarningsMultiplier(),
   ]);
@@ -179,9 +186,9 @@ export const POST = withEmployee(async ({ req, session }) => {
   const showFull = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : parseFloat(String(employee?.baselineWaitingPayment ?? 0)) || 0);
-  const grossWaiting = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
-  const totalPaidByUs = parseFloat(String(paidAggregate._sum.amountPaid ?? 0)) || 0;
-  const waitingPayment = Math.max(0, grossWaiting - totalPaidByUs);
+  const grossWaiting  = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const totalDeducted = parseFloat(String(paidAggregate._sum.amountAtRequest ?? 0)) || 0;
+  const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
 
   if (waitingPayment < MIN_PAYOUT_USD) {
     return fail(400, `You need at least $${MIN_PAYOUT_USD} available to request a payout.`, 'BELOW_MIN');

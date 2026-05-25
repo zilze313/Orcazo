@@ -58,7 +58,7 @@ export const GET = withEmployee(async ({ req, session }) => {
   const sortParam = url.searchParams.get('sort') as SortKey | null;
   const sort: SortKey = sortParam && SORTS.includes(sortParam) ? sortParam : 'earnings';
 
-  const [resp, allowlistRow, employee, M] = await Promise.all([
+  const [resp, allowlistRow, employee, M, dbPaidAgg] = await Promise.all([
     fetchDash(
       session.affiliateNetworkToken,
       { status, campaignName, onlySevenDays },
@@ -71,7 +71,6 @@ export const GET = withEmployee(async ({ req, session }) => {
     db.employee.findUnique({
       where: { id: session.employeeId },
       select: {
-        baselineTotalPaid:      true,
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
         baselineCapturedAt:     true,
@@ -79,6 +78,11 @@ export const GET = withEmployee(async ({ req, session }) => {
       },
     }),
     getEarningsMultiplier(),
+    // totalPaid comes from our own PayoutRequest table, not upstream
+    db.payoutRequest.aggregate({
+      where: { employeeId: session.employeeId, status: 'PAID' },
+      _sum: { amountPaid: true },
+    }),
   ]);
 
   // ── Lazy baseline capture ─────────────────────────────────────────────────
@@ -148,7 +152,6 @@ export const GET = withEmployee(async ({ req, session }) => {
   // showFull → no subtraction (baseline = 0, show raw upstream * 2).
   // First load → use current upstream as baseline so totals start at zero.
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
-  const bPaid    = showFull ? 0 : (isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid));
   const bPayment = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const bReview  = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
@@ -156,7 +159,8 @@ export const GET = withEmployee(async ({ req, session }) => {
     totalCount:          total,
     totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * M,
     totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) * M,
-    totalPaid:           Math.max(0, num(resp.totalPaid)           - bPaid)    * M,
+    // totalPaid comes from our own DB — sum of amountPaid on PAID payout requests
+    totalPaid:           decNum(dbPaidAgg._sum.amountPaid),
   };
 
   return ok({

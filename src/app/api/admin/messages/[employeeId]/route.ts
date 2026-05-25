@@ -23,11 +23,18 @@ export const GET = withAdmin(async ({ req }) => {
   });
   if (!employee) return fail(404, 'Employee not found.', 'NOT_FOUND');
 
-  const messages = await db.chatMessage.findMany({
-    where: { employeeId },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
-  });
+  const [messages, signupReq] = await Promise.all([
+    db.chatMessage.findMany({
+      where: { employeeId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
+    }),
+    // Prefer the name the creator entered during signup over AffiliateNetwork names
+    db.creatorSignupRequest.findUnique({
+      where: { publicEmail: employee.email },
+      select: { fullName: true },
+    }),
+  ]);
 
   // Mark all unread creator messages as read (fire-and-forget)
   db.chatMessage.updateMany({
@@ -35,13 +42,15 @@ export const GET = withAdmin(async ({ req }) => {
     data: { readAt: new Date() },
   }).catch(() => {});
 
+  const afName = employee.firstName
+    ? `${employee.firstName}${employee.lastName ? ' ' + employee.lastName : ''}`
+    : null;
+
   return ok({
     employee: {
       id: employee.id,
       email: employee.email,
-      displayName: employee.firstName
-        ? `${employee.firstName}${employee.lastName ? ' ' + employee.lastName : ''}`
-        : employee.email,
+      displayName: signupReq?.fullName ?? afName ?? employee.email,
     },
     messages,
   });
