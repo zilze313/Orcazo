@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Send, Loader2, Search, ArrowLeft, PenSquare } from 'lucide-react';
+import { MessageSquare, Send, Loader2, Search, ArrowLeft, PenSquare, ImagePlus, X } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,8 @@ interface ChatMsg {
   id: string;
   fromAdmin: boolean;
   content: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -69,7 +71,6 @@ function employeeDisplayName(e: EmployeeItem) {
     : e.email;
 }
 
-// ── New-conversation employee picker ──────────────────────────────────────────
 function NewConversationDialog({
   open,
   onClose,
@@ -156,16 +157,17 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function MessagesPage() {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState('');
   const [text, setText] = React.useState('');
+  const [pendingImage, setPendingImage] = React.useState<{ url: string; type: string } | null>(null);
+  const [uploading, setUploading] = React.useState(false);
   const [newConvOpen, setNewConvOpen] = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Conversation list — poll every 5s
   const listQuery = useQuery<ConversationsResp>({
     queryKey: ['admin', 'messages'],
     queryFn: () => api.get<ConversationsResp>('/api/admin/messages'),
@@ -173,7 +175,6 @@ export default function MessagesPage() {
     staleTime: 0,
   });
 
-  // Active conversation — poll every 3s
   const chatQuery = useQuery<MessagesResp>({
     queryKey: ['admin', 'messages', selectedId],
     queryFn: () => api.get<MessagesResp>(`/api/admin/messages/${selectedId}`),
@@ -183,24 +184,50 @@ export default function MessagesPage() {
   });
 
   const sendMut = useMutation({
-    mutationFn: (content: string) =>
-      api.post<{ message: ChatMsg }>(`/api/admin/messages/${selectedId}`, { content }),
+    mutationFn: (payload: { content: string; mediaUrl?: string; mediaType?: string }) =>
+      api.post<{ message: ChatMsg }>(`/api/admin/messages/${selectedId}`, payload),
     onSuccess: () => {
       setText('');
+      setPendingImage(null);
       qc.invalidateQueries({ queryKey: ['admin', 'messages', selectedId] });
       qc.invalidateQueries({ queryKey: ['admin', 'messages'] });
     },
   });
 
-  // Auto-scroll on new messages
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatQuery.data?.messages.length]);
 
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId) return;
+    e.target.value = '';
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/admin/messages/${selectedId}/upload`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Upload failed');
+        return;
+      }
+      const data = await res.json();
+      setPendingImage({ url: data.url, type: data.mediaType });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || sendMut.isPending || !selectedId) return;
-    sendMut.mutate(trimmed);
+    if ((!trimmed && !pendingImage) || sendMut.isPending || !selectedId) return;
+    sendMut.mutate({
+      content: trimmed || '📎 Image',
+      mediaUrl: pendingImage?.url,
+      mediaType: pendingImage?.type,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -213,6 +240,7 @@ export default function MessagesPage() {
   function handleSelectEmployee(id: string) {
     setSelectedId(id);
     setText('');
+    setPendingImage(null);
   }
 
   const conversations = (listQuery.data?.conversations ?? []).filter((c) =>
@@ -222,6 +250,8 @@ export default function MessagesPage() {
   const selectedConv = conversations.find((c) => c.employeeId === selectedId) ??
     listQuery.data?.conversations.find((c) => c.employeeId === selectedId);
 
+  const canSend = (text.trim().length > 0 || !!pendingImage) && !sendMut.isPending;
+
   return (
     <div className="flex flex-col h-screen">
       <PageHeader
@@ -230,7 +260,7 @@ export default function MessagesPage() {
       />
 
       <div className="flex flex-1 min-h-0">
-        {/* ── Conversation list ── */}
+        {/* Conversation list */}
         <div
           className={cn(
             'w-full md:w-72 lg:w-80 border-r flex flex-col flex-shrink-0',
@@ -273,7 +303,7 @@ export default function MessagesPage() {
               conversations.map((c) => (
                 <button
                   key={c.employeeId}
-                  onClick={() => { setSelectedId(c.employeeId); setText(''); }}
+                  onClick={() => { setSelectedId(c.employeeId); setText(''); setPendingImage(null); }}
                   className={cn(
                     'w-full text-left px-3 py-3 border-b hover:bg-muted/40 transition-colors',
                     selectedId === c.employeeId && 'bg-muted',
@@ -301,7 +331,7 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* ── Chat window ── */}
+        {/* Chat window */}
         <div
           className={cn(
             'flex-1 flex flex-col min-w-0',
@@ -364,9 +394,43 @@ export default function MessagesPage() {
                 <div ref={bottomRef} />
               </div>
 
+              {/* Pending image preview */}
+              {pendingImage && (
+                <div className="px-4 pb-2 flex-shrink-0">
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pendingImage.url} alt="Pending" className="h-20 w-20 object-cover rounded-lg border" />
+                    <button
+                      onClick={() => setPendingImage(null)}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Input */}
               <div className="border-t px-4 py-3 bg-background flex-shrink-0">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="sr-only"
+                  onChange={handleImageSelect}
+                />
                 <div className="flex gap-2 items-end">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="flex-shrink-0 h-10 w-10 text-muted-foreground"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading || sendMut.isPending}
+                    title="Attach image (max 50 MB)"
+                  >
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                  </Button>
                   <textarea
                     placeholder="Type a message… (Enter to send)"
                     value={text}
@@ -379,7 +443,7 @@ export default function MessagesPage() {
                   <Button
                     size="icon"
                     onClick={handleSend}
-                    disabled={!text.trim() || sendMut.isPending}
+                    disabled={!canSend}
                     className="flex-shrink-0 h-10 w-10"
                   >
                     {sendMut.isPending
@@ -403,7 +467,6 @@ export default function MessagesPage() {
 }
 
 function AdminMessageBubble({ msg }: { msg: ChatMsg }) {
-  // fromAdmin = true → admin sent it → show on the RIGHT in admin view
   const isOutgoing = msg.fromAdmin;
 
   return (
@@ -416,7 +479,19 @@ function AdminMessageBubble({ msg }: { msg: ChatMsg }) {
             : 'bg-muted text-foreground rounded-tl-sm',
         )}
       >
-        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        {msg.mediaUrl && (
+          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block mb-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={msg.mediaUrl}
+              alt="Attached image"
+              className="max-w-full rounded-lg max-h-64 object-contain"
+            />
+          </a>
+        )}
+        {msg.content !== '📎 Image' && (
+          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        )}
         <p
           className={cn(
             'text-[10px] mt-1',

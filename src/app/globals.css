@@ -73,4 +73,15 @@
     0%, 100% { transform: translateY(0px)   rotate(var(--card-rot, 0deg)); }
     50%       { transform: translateY(-10px) rotate(var(--card-rot, 0deg)); }
   }
+
+  @keyframes carousel {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-33.333%); }
+  }
+  .animate-carousel {
+    animation: carousel linear infinite;
+  }
+  .animate-carousel:hover {
+    animation-play-state: paused;
+  }
 }

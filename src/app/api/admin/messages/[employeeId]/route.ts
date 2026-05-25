@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const sendBody = z.object({
   content: z.string().trim().min(1).max(2000),
+  mediaUrl: z.string().url().optional(),
+  mediaType: z.string().max(100).optional(),
 });
 
 export const GET = withAdmin(async ({ req }) => {
@@ -24,7 +26,7 @@ export const GET = withAdmin(async ({ req }) => {
   const messages = await db.chatMessage.findMany({
     where: { employeeId },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, fromAdmin: true, content: true, readAt: true, createdAt: true },
+    select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
   });
 
   // Mark all unread creator messages as read (fire-and-forget)
@@ -55,8 +57,14 @@ export const POST = withAdmin(async ({ req }) => {
   if ('errorResponse' in parsed) return parsed.errorResponse;
 
   const message = await db.chatMessage.create({
-    data: { employeeId, fromAdmin: true, content: parsed.data.content },
-    select: { id: true, fromAdmin: true, content: true, readAt: true, createdAt: true },
+    data: {
+      employeeId,
+      fromAdmin: true,
+      content: parsed.data.content,
+      mediaUrl: parsed.data.mediaUrl ?? null,
+      mediaType: parsed.data.mediaType ?? null,
+    },
+    select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
   });
 
   return ok({ message });

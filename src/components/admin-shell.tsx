@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
+  Activity, Film, UserCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -21,7 +22,6 @@ interface BadgeCounts {
   messages: number;
 }
 
-// Map each nav href to its badge key
 const BADGE_KEY: Record<string, keyof BadgeCounts> = {
   '/admin/creator-signups': 'creatorSignups',
   '/admin/payouts':         'payouts',
@@ -30,27 +30,34 @@ const BADGE_KEY: Record<string, keyof BadgeCounts> = {
 };
 
 const NAV = [
-  { href: '/admin',                 label: 'Dashboard',        icon: LayoutDashboard },
-  { href: '/admin/creator-signups', label: 'Creator signups',  icon: UserPlus        },
-  { href: '/admin/payouts',         label: 'Payouts',          icon: Wallet          },
-  { href: '/admin/login-requests',  label: 'Login requests',   icon: KeyRound        },
-  { href: '/admin/allowlist',       label: 'Allowlist',        icon: ShieldCheck     },
-  { href: '/admin/managed-emails',  label: 'Managed emails',   icon: AtSign          },
-  { href: '/admin/employees',       label: 'Employees',        icon: Users           },
-  { href: '/admin/submissions',     label: 'Submissions',      icon: FileText        },
-  { href: '/admin/campaigns',        label: 'Campaigns',        icon: LayoutGrid },
-  { href: '/admin/campaign-rules',   label: 'Campaign Rules',   icon: BookOpen   },
-  { href: '/admin/announcements',    label: 'Announcements',    icon: Megaphone  },
-  { href: '/admin/referral-codes',   label: 'Referral Codes',   icon: Tag        },
-  { href: '/admin/messages',         label: 'Messages',         icon: MessageSquare },
-];
+  { href: '/admin',                  label: 'Dashboard',          icon: LayoutDashboard, permission: null      },
+  { href: '/admin/creator-signups',  label: 'Creator signups',    icon: UserPlus,        permission: 'creators' },
+  { href: '/admin/payouts',          label: 'Payouts',            icon: Wallet,          permission: 'payouts' },
+  { href: '/admin/login-requests',   label: 'Login requests',     icon: KeyRound,        permission: 'login-requests' },
+  { href: '/admin/allowlist',        label: 'Allowlist',          icon: ShieldCheck,     permission: 'creators' },
+  { href: '/admin/managed-emails',   label: 'Managed emails',     icon: AtSign,          permission: 'managed-emails' },
+  { href: '/admin/employees',        label: 'Employees',          icon: Users,           permission: 'creators' },
+  { href: '/admin/submissions',      label: 'Submissions',        icon: FileText,        permission: 'campaigns' },
+  { href: '/admin/campaigns',        label: 'Campaigns',          icon: LayoutGrid,      permission: 'campaigns' },
+  { href: '/admin/campaign-rules',   label: 'Campaign Rules',     icon: BookOpen,        permission: 'campaigns' },
+  { href: '/admin/announcements',    label: 'Announcements',      icon: Megaphone,       permission: 'content' },
+  { href: '/admin/referral-codes',   label: 'Referral Codes',     icon: Tag,             permission: 'referral-codes' },
+  { href: '/admin/messages',         label: 'Messages',           icon: MessageSquare,   permission: 'messages' },
+  { href: '/admin/homepage-videos',  label: 'Homepage Videos',    icon: Film,            permission: 'content' },
+  { href: '/admin/health',           label: 'Health',             icon: Activity,        permission: 'health' },
+  { href: '/admin/admins',           label: 'Admins',             icon: UserCog,         permission: 'admins' },
+] as const;
 
 export function AdminShell({
   children,
   email,
+  role,
+  permissions,
 }: {
   children: React.ReactNode;
   email: string;
+  role: 'SUPER_ADMIN' | 'ADMIN';
+  permissions: string[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -59,7 +66,13 @@ export function AdminShell({
   const [logoutLoading, setLogoutLoading] = React.useState(false);
   const [badges, setBadges] = React.useState<BadgeCounts | null>(null);
 
-  // Poll badge counts every 30s
+  const visibleNav = NAV.filter((item) => {
+    if (!item.permission) return true;
+    if (role === 'SUPER_ADMIN') return true;
+    if (item.permission === 'admins') return false;
+    return permissions.includes(item.permission);
+  });
+
   React.useEffect(() => {
     let cancelled = false;
     async function fetchBadges() {
@@ -114,7 +127,7 @@ export function AdminShell({
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const active = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href + '/'));
             const Icon = item.icon;
             const badgeKey = BADGE_KEY[item.href];
@@ -146,10 +159,12 @@ export function AdminShell({
         <div className="border-t p-3">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-              A
+              {role === 'SUPER_ADMIN' ? '★' : 'A'}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium truncate">Admin</div>
+              <div className="text-sm font-medium truncate">
+                {role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}
+              </div>
               <div className="text-xs text-muted-foreground truncate">{email}</div>
             </div>
           </div>

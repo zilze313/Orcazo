@@ -13,16 +13,25 @@ export async function ensureAdminBootstrap() {
   bootstrapped = true;
 
   const count = await db.admin.count();
-  if (count > 0) return;
 
-  const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-  const pass  = process.env.ADMIN_BOOTSTRAP_PASSWORD;
-  if (!email || !pass) {
-    log.warn('admin.bootstrap_skipped', { reason: 'env vars missing' });
+  if (count === 0) {
+    const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+    const pass  = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+    if (!email || !pass) {
+      log.warn('admin.bootstrap_skipped', { reason: 'env vars missing' });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(pass, 12);
+    await db.admin.create({ data: { email, passwordHash, role: 'SUPER_ADMIN' } });
+    log.info('admin.bootstrapped', { email });
     return;
   }
 
-  const passwordHash = await bcrypt.hash(pass, 12);
-  await db.admin.create({ data: { email, passwordHash } });
-  log.info('admin.bootstrapped', { email });
+  // If admins exist but none are SUPER_ADMIN yet (e.g. after role migration),
+  // promote all existing admins so the panel remains accessible.
+  const superCount = await db.admin.count({ where: { role: 'SUPER_ADMIN' } });
+  if (superCount === 0) {
+    await db.admin.updateMany({ data: { role: 'SUPER_ADMIN' } });
+    log.info('admin.all_promoted_to_super_admin');
+  }
 }

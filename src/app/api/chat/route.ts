@@ -1,5 +1,5 @@
 // GET  /api/chat  → creator: fetch their messages + mark incoming as read
-// POST /api/chat  → creator: send a message
+// POST /api/chat  → creator: send a message (text only or text + mediaUrl)
 
 import { withEmployee, ok, parseBody, fail } from '@/lib/api';
 import { db } from '@/lib/db';
@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic';
 
 const sendBody = z.object({
   content: z.string().trim().min(1, 'Message cannot be empty').max(2000),
+  mediaUrl: z.string().url().optional(),
+  mediaType: z.string().max(100).optional(),
 });
 
 export const GET = withEmployee(async ({ session }) => {
@@ -21,6 +23,8 @@ export const GET = withEmployee(async ({ session }) => {
       id: true,
       fromAdmin: true,
       content: true,
+      mediaUrl: true,
+      mediaType: true,
       readAt: true,
       createdAt: true,
     },
@@ -48,8 +52,10 @@ export const POST = withEmployee(async ({ req, session }) => {
       employeeId: session.employeeId,
       fromAdmin: false,
       content: parsed.data.content,
+      mediaUrl: parsed.data.mediaUrl ?? null,
+      mediaType: parsed.data.mediaType ?? null,
     },
-    select: { id: true, fromAdmin: true, content: true, readAt: true, createdAt: true },
+    select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
   });
 
   return ok({ message });

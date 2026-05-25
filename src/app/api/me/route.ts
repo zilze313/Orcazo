@@ -66,10 +66,10 @@ export async function GET(_req: NextRequest) {
   // 3) If upstream gave us fresh useful data AND it's different from DB, update
   //    the cache. Fire-and-forget — never block the response.
   if (upstream && !upstreamIsEmpty) {
+    // Never overwrite firstName/lastName from upstream — those fields are always
+    // populated from the creator's own signup form (not the proxy account name).
     const fresh = {
       affiliateNetworkPublicId: upstream.publicId ?? undefined,
-      firstName: upstream.personal?.firstName ?? undefined,
-      lastName: upstream.personal?.lastName ?? undefined,
       bioVerificationCode: upstream.bioVerificationCode ?? undefined,
       cachedBalance: upstream.balance
         ? new Prisma.Decimal(upstream.balance)
@@ -81,12 +81,20 @@ export async function GET(_req: NextRequest) {
       .catch((err) => log.warn("me.refresh_db_failed", { err: String(err) }));
   }
 
-  // 4) Compose the profile we return. Strip the upstream token NO MATTER WHAT.
+  // 4) Compose the profile we return. Strip the upstream token and always use the
+  //    creator's own name from the DB (never the proxy account name from upstream).
   const profile =
     upstream && !upstreamIsEmpty
       ? (() => {
-          const { token: _stripped, ...rest } = upstream;
-          return rest;
+          const { token: _stripped, personal: _personal, ...rest } = upstream;
+          return {
+            ...rest,
+            personal: {
+              email: session.email,
+              firstName: employee?.firstName ?? null,
+              lastName: employee?.lastName ?? null,
+            },
+          };
         })()
       : {
           publicId: employee?.affiliateNetworkPublicId ?? null,

@@ -103,10 +103,19 @@ export function withAdmin<T>(
       ip: string;
     },
   ) => Promise<NextResponse>,
+  opts?: { permission?: string },
 ) {
   return async (req: NextRequest) => {
     const session = await getAdminSession();
     if (!session) return fail(401, 'Not authenticated', 'UNAUTHENTICATED');
+
+    // Permission check: SUPER_ADMIN always passes; ADMIN needs the permission in their array.
+    if (opts?.permission && session.role !== 'SUPER_ADMIN') {
+      if (!session.permissions.includes(opts.permission)) {
+        return fail(403, 'You do not have permission to perform this action', 'FORBIDDEN');
+      }
+    }
+
     const ip = getClientIp(req);
     try {
       return await handler({ req, session, ip });

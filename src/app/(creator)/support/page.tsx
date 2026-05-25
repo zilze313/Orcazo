@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, Loader2, MessageCircle, HelpCircle } from 'lucide-react';
+import { Send, Loader2, MessageCircle, HelpCircle, ImagePlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api-client';
@@ -12,6 +12,8 @@ interface ChatMsg {
   id: string;
   fromAdmin: boolean;
   content: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -34,8 +36,10 @@ function formatTime(iso: string) {
 export default function SupportPage() {
   const qc = useQueryClient();
   const [text, setText] = React.useState('');
+  const [pendingImage, setPendingImage] = React.useState<{ url: string; type: string } | null>(null);
+  const [uploading, setUploading] = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery<ChatResp>({
     queryKey: ['chat'],
@@ -45,23 +49,49 @@ export default function SupportPage() {
   });
 
   const sendMut = useMutation({
-    mutationFn: (content: string) =>
-      api.post<{ message: ChatMsg }>('/api/chat', { content }),
+    mutationFn: (payload: { content: string; mediaUrl?: string; mediaType?: string }) =>
+      api.post<{ message: ChatMsg }>('/api/chat', payload),
     onSuccess: () => {
       setText('');
+      setPendingImage(null);
       qc.invalidateQueries({ queryKey: ['chat'] });
     },
   });
 
-  // Auto-scroll to bottom on new messages
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [data?.messages.length]);
 
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/chat/upload', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Upload failed');
+        return;
+      }
+      const data = await res.json();
+      setPendingImage({ url: data.url, type: data.mediaType });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || sendMut.isPending) return;
-    sendMut.mutate(trimmed);
+    if ((!trimmed && !pendingImage) || sendMut.isPending) return;
+    sendMut.mutate({
+      content: trimmed || (pendingImage ? '📎 Image' : ''),
+      mediaUrl: pendingImage?.url,
+      mediaType: pendingImage?.type,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -72,6 +102,7 @@ export default function SupportPage() {
   }
 
   const messages = data?.messages ?? [];
+  const canSend = (text.trim().length > 0 || !!pendingImage) && !sendMut.isPending;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
@@ -119,11 +150,48 @@ export default function SupportPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Pending image preview */}
+      {pendingImage && (
+        <div className="px-4 pb-2 flex-shrink-0">
+          <div className="relative inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={pendingImage.url}
+              alt="Pending upload"
+              className="h-20 w-20 object-cover rounded-lg border"
+            />
+            <button
+              onClick={() => setPendingImage(null)}
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="border-t px-4 py-3 bg-background flex-shrink-0">
         <div className="flex gap-2 items-end">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            className="sr-only"
+            onChange={handleImageSelect}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 h-10 w-10 text-muted-foreground"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || sendMut.isPending}
+            title="Attach image (max 50 MB)"
+          >
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          </Button>
           <textarea
-            ref={textareaRef}
             placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
             value={text}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
@@ -135,7 +203,7 @@ export default function SupportPage() {
           <Button
             size="icon"
             onClick={handleSend}
-            disabled={!text.trim() || sendMut.isPending}
+            disabled={!canSend}
             className="flex-shrink-0 h-10 w-10"
           >
             {sendMut.isPending
@@ -150,7 +218,6 @@ export default function SupportPage() {
 }
 
 function MessageBubble({ msg }: { msg: ChatMsg }) {
-  // fromAdmin = true → admin sent it → show on the LEFT in creator view
   const isIncoming = msg.fromAdmin;
 
   return (
@@ -163,7 +230,19 @@ function MessageBubble({ msg }: { msg: ChatMsg }) {
             : 'bg-primary text-primary-foreground rounded-tr-sm',
         )}
       >
-        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        {msg.mediaUrl && (
+          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block mb-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={msg.mediaUrl}
+              alt="Attached image"
+              className="max-w-full rounded-lg max-h-64 object-contain"
+            />
+          </a>
+        )}
+        {msg.content !== '📎 Image' && (
+          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        )}
         <p
           className={cn(
             'text-[10px] mt-1',

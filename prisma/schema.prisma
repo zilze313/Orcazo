@@ -12,14 +12,20 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 enum SignupStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
 }
 
 enum PayoutMethod {
@@ -32,6 +38,7 @@ enum PayoutStatus {
   IN_PROGRESS
   PAID
   CANCELLED
+  REJECTED
 }
 
 model Allowlist {
@@ -132,6 +139,9 @@ model Admin {
   id           String         @id @default(cuid())
   email        String         @unique
   passwordHash String
+  role         AdminRole      @default(ADMIN)
+  /// JSON array of permission strings. SUPER_ADMIN ignores this field (has all permissions).
+  permissions  Json           @default("[]")
   createdAt    DateTime       @default(now())
   sessions     AdminSession[]
   allowlistEntries Allowlist[]
@@ -331,10 +341,27 @@ model ChatMessage {
   employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   fromAdmin  Boolean   @default(false)
   content    String    @db.Text
+  /// Supabase Storage public URL for an attached image.
+  mediaUrl   String?   @db.Text
+  /// MIME type of the attached media (e.g. "image/jpeg").
+  mediaType  String?
   readAt     DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([employeeId, createdAt(sort: Asc)])
   @@index([fromAdmin, readAt])
   @@index([createdAt(sort: Desc)])
+}
+
+/// Campaign showcase videos displayed in the homepage infinite carousel.
+model HomepageVideo {
+  id        String   @id @default(cuid())
+  url       String   @db.Text
+  title     String?  @db.VarChar(200)
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, order])
 }

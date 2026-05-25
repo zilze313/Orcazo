@@ -90,6 +90,8 @@ export interface AdminSession {
   sessionId: string;
   adminId: string;
   email: string;
+  role: 'SUPER_ADMIN' | 'ADMIN';
+  permissions: string[];
 }
 
 export async function createAdminSession(adminId: string) {
@@ -111,10 +113,16 @@ export async function getAdminSession(): Promise<AdminSession | null> {
   });
   if (!session || session.expiresAt < new Date()) return null;
 
+  const role = (session.admin as { role?: string }).role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN';
+  const rawPerms = (session.admin as { permissions?: unknown }).permissions;
+  const permissions = Array.isArray(rawPerms) ? (rawPerms as string[]) : [];
+
   return {
     sessionId: session.id,
     adminId: session.adminId,
     email: session.admin.email,
+    role,
+    permissions,
   };
 }
 
