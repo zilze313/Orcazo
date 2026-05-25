@@ -78,10 +78,10 @@ export const GET = withEmployee(async ({ req, session }) => {
       },
     }),
     getEarningsMultiplier(),
-    // totalPaid comes from our own PayoutRequest table, not upstream
+    // Sums for PAID payout requests (used for both totalPaid and balance deduction)
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
-      _sum: { amountPaid: true },
+      _sum: { amountPaid: true, amountAtRequest: true },
     }),
   ]);
 
@@ -155,10 +155,13 @@ export const GET = withEmployee(async ({ req, session }) => {
   const bPayment = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const bReview  = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
+  // Deduct full amountAtRequest (not just amountPaid) so penalties are gone from balance
+  const totalDeducted = decNum(dbPaidAgg._sum.amountAtRequest);
+
   const summary = {
     totalCount:          total,
     totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * M,
-    totalWaitingPayment: Math.max(0, num(resp.totalWaitingPayment) - bPayment) * M,
+    totalWaitingPayment: Math.max(0, Math.max(0, num(resp.totalWaitingPayment) - bPayment) * M - totalDeducted),
     // totalPaid comes from our own DB — sum of amountPaid on PAID payout requests
     totalPaid:           decNum(dbPaidAgg._sum.amountPaid),
   };
