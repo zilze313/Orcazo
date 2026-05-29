@@ -203,6 +203,43 @@ export function creatorApprovalEmail(opts: { fullName: string; loginUrl: string 
 }
 
 
+/**
+ * Generic admin-to-creator direct email. The admin types a heading and a
+ * plain-text message; we wrap both in the standard Orcazo email shell and
+ * convert blank-line-separated chunks into <p> blocks.
+ */
+export function directMessageEmail(opts: {
+  heading: string;
+  message: string;
+  recipientName?: string | null;
+}): { subject: string; html: string } {
+  const { heading, message, recipientName } = opts;
+  const paragraphs = message
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map(
+      (p) =>
+        `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`,
+    )
+    .join('');
+
+  return {
+    subject: heading,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 16px;">${escapeHtml(heading)}</h1>
+        ${recipientName ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">Hi ${escapeHtml(recipientName)},</p>` : ''}
+        ${paragraphs}
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
+      </div>
+    `.trim(),
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
