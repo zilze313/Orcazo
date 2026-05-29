@@ -23,9 +23,6 @@ export const PUT = withAdmin(async ({ req }) => {
     if (!Number.isFinite(v) || v <= 0) return fail(400, 'earningsMultiplier must be a positive number');
     updates.push(setSetting(KEYS.EARNINGS_MULTIPLIER, String(v)));
   }
-  if ('autoLoginEnabled' in body) {
-    updates.push(setSetting(KEYS.AUTO_LOGIN_ENABLED, body.autoLoginEnabled ? 'true' : 'false'));
-  }
   if ('referralThreshold' in body) {
     const v = parseInt(String(body.referralThreshold), 10);
     if (!Number.isFinite(v) || v < 1) return fail(400, 'referralThreshold must be ≥ 1');

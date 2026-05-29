@@ -16,7 +16,6 @@ import { sendLoginCode } from '@/lib/affiliatenetwork/client';
 import { UpstreamError } from '@/lib/affiliatenetwork/types';
 import { log } from '@/lib/logger';
 import { notifyAdmins } from '@/lib/push';
-import { getAutoLoginEnabled } from '@/lib/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,10 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const [resp, autoLogin] = await Promise.all([
-      sendLoginCode(allowed.proxyEmail),
-      getAutoLoginEnabled(),
-    ]);
+    const resp = await sendLoginCode(allowed.proxyEmail);
     if (!resp.success) {
       log.warn('auth.upstream_send_code_failed', { publicEmail, errorMsg: resp.errorMsg });
       return fail(400, resp.errorMsg || 'Could not send verification code', 'UPSTREAM_REJECTED');
@@ -67,10 +63,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => null);
     }).catch((err) => log.warn('auth.login_request_create_failed', { err: String(err) }));
 
-    // Auto-login mode: tell the client to start polling /api/auth/pending-otp.
-    // The Cloudflare email worker will deliver the OTP to Allowlist.pendingOtp.
-    // ⚠️ Intentionally compromised security — only enable in trusted environments.
-    return ok({ ok: true, autoLogin });
+    return ok({ ok: true });
   } catch (err) {
     if (err instanceof UpstreamError) {
       if (err.code === 'TIMEOUT')      return fail(504, 'Upstream timed out');

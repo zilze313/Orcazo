@@ -6,7 +6,6 @@ import { db } from './db';
 
 export const KEYS = {
   EARNINGS_MULTIPLIER: 'earningsMultiplier',
-  AUTO_LOGIN_ENABLED:  'autoLoginEnabled',
   REFERRAL_THRESHOLD:  'referralThreshold',
   REFERRAL_REWARD:     'referralReward',
 } as const;
@@ -21,7 +20,6 @@ export async function getAllSettings() {
   const map = new Map(rows.map((r) => [r.key, r.value]));
   return {
     earningsMultiplier: parseMultiplier(map.get(KEYS.EARNINGS_MULTIPLIER)),
-    autoLoginEnabled:   map.get(KEYS.AUTO_LOGIN_ENABLED) === 'true',
     referralThreshold:  parseThreshold(map.get(KEYS.REFERRAL_THRESHOLD)),
     referralReward:     parseReward(map.get(KEYS.REFERRAL_REWARD)),
   };
@@ -45,10 +43,6 @@ function parseReward(v: string | undefined): number {
 
 export async function getEarningsMultiplier(): Promise<number> {
   return parseMultiplier(await getRaw(KEYS.EARNINGS_MULTIPLIER) ?? undefined);
-}
-
-export async function getAutoLoginEnabled(): Promise<boolean> {
-  return (await getRaw(KEYS.AUTO_LOGIN_ENABLED)) === 'true';
 }
 
 export async function getReferralConfig(): Promise<{ threshold: number; reward: number }> {
