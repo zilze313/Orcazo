@@ -408,6 +408,28 @@ model ReferralClaim {
   @@index([status, createdAt(sort: Desc)])
 }
 
+/// Captures inbound emails that the OTP extractor couldn't parse — typically
+/// Gmail forwarding-confirmation requests or unrelated messages. Surfaced in
+/// the admin panel so the admin can click confirmation links without digging
+/// through Vercel logs.
+model InboundMailEvent {
+  id           String    @id @default(cuid())
+  /// Inbound address the email was sent to (e.g. alice@orcazo.com)
+  to           String
+  fromAddress  String?
+  subject      String?
+  /// Gmail forwarding-confirmation URL if one was found in the body
+  confirmUrl   String?   @db.Text
+  /// ~1KB readable preview of the decoded email body
+  bodySnippet  String?   @db.Text
+  /// Set when admin clicks dismiss. Auto-purged after 30 days regardless of state.
+  dismissedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([dismissedAt, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
 /// Log of admin bulk email broadcasts sent to all creators.
 model BroadcastEmail {
   id             String   @id @default(cuid())

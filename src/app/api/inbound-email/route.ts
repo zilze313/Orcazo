@@ -1,7 +1,7 @@
 // POST /api/inbound-email
 //
-// Called by the Cloudflare Email Worker whenever an OTP email lands at a
-// creator's inbound address (e.g. alice@orcazo.com).
+// Called by the Cloudflare Email Worker whenever an email lands at a creator's
+// inbound address (e.g. alice@orcazo.com).
 //
 // Body (JSON):
 //   { to: string, from: string, subject: string, rawEmail: string }
@@ -9,10 +9,12 @@
 // The handler:
 //   1. Verifies the shared secret.
 //   2. Extracts the 4-8 digit OTP from the raw MIME email.
-//   3. Looks up the Allowlist row by inboundAddress.
-//   4. Stores the OTP in pendingOtp / pendingOtpAt.
+//   3. On success: looks up the Allowlist row, stores a debug copy of the OTP,
+//      and sends a freshly-branded copy to the creator via Resend.
+//   4. On failure: persists an InboundMailEvent so the admin can review it in
+//      the admin panel (Gmail forwarding-confirmation links land here).
 //
-// The creator's login page polls /api/auth/await-otp which reads this field.
+// InboundMailEvent rows older than 30 days are purged on each call.
 
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
@@ -23,6 +25,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const WEBHOOK_SECRET = process.env.INBOUND_EMAIL_SECRET ?? '';
+const RETENTION_DAYS = 30;
 
 // ---------------------------------------------------------------------------
 // OTP extraction
@@ -58,6 +61,81 @@ function extractOtp(rawEmail: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers for surfacing non-OTP emails to the admin
+// ---------------------------------------------------------------------------
+
+const GMAIL_CONFIRM_RE = /https:\/\/mail\.google\.com\/mail\/vf-[^\s\r\n"<>]+/;
+
+/**
+ * Look for a Gmail forwarding-confirmation URL anywhere in the email —
+ * including inside base64-encoded MIME body sections.
+ */
+function extractGmailConfirmUrl(rawEmail: string): string | null {
+  const direct = rawEmail.match(GMAIL_CONFIRM_RE);
+  if (direct) return direct[0];
+
+  const b64Sections = rawEmail.match(/([A-Za-z0-9+/]{60,}={0,2})/g) ?? [];
+  for (const section of b64Sections) {
+    try {
+      const decoded = Buffer.from(section, 'base64').toString('utf-8');
+      const m = decoded.match(GMAIL_CONFIRM_RE);
+      if (m) return m[0];
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
+/** Decode quoted-printable encoding (=XX hex + =\n soft breaks). */
+function decodeQuotedPrintable(s: string): string {
+  return s
+    .replace(/=\r?\n/g, '')
+    .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Best-effort readable preview of the email body. Tries plain text first,
+ * falls back to decoded+stripped HTML, then to the raw email tail.
+ * Returns at most ~1500 chars.
+ */
+function extractReadableBody(rawEmail: string): string {
+  // 1. text/plain MIME section
+  const plain = rawEmail.match(
+    /Content-Type:\s*text\/plain[^\n]*\r?\n(?:[A-Za-z-]+:[^\n]*\r?\n)*\r?\n([\s\S]*?)(?:\r?\n--|$)/i,
+  );
+  if (plain) {
+    const decoded = /quoted-printable/i.test(rawEmail) ? decodeQuotedPrintable(plain[1]) : plain[1];
+    const cleaned = decoded.replace(/\r/g, '').trim();
+    if (cleaned.length > 20) return cleaned.slice(0, 1500);
+  }
+
+  // 2. base64 HTML section, strip tags
+  const b64Sections = rawEmail.match(/([A-Za-z0-9+/]{60,}={0,2})/g) ?? [];
+  for (const section of b64Sections) {
+    try {
+      const decoded = Buffer.from(section, 'base64').toString('utf-8');
+      if (decoded.includes('<') && decoded.length > 100) {
+        const text = decoded
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (text.length > 50) return text.slice(0, 1500);
+      }
+    } catch { /* skip */ }
+  }
+
+  // 3. Fallback to raw after headers
+  const headersEnd = rawEmail.indexOf('\n\n');
+  const body = headersEnd > -1 ? rawEmail.slice(headersEnd + 2) : rawEmail;
+  return body.slice(0, 1500).trim();
+}
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -76,37 +154,43 @@ export async function POST(req: NextRequest) {
     return new Response('Bad JSON', { status: 400 });
   }
 
-  const { to, rawEmail } = body;
+  const { to, from, subject, rawEmail } = body;
   if (!to || !rawEmail) {
     return new Response('Missing to or rawEmail', { status: 400 });
   }
 
+  // Best-effort purge of stale events (fire-and-forget; cheap, indexed).
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  db.inboundMailEvent
+    .deleteMany({ where: { createdAt: { lt: cutoff } } })
+    .catch((err) => log.warn('inbound_email.purge_failed', { err: String(err) }));
+
   // Extract OTP
   const otp = extractOtp(rawEmail);
   if (!otp) {
-    // Look for a Gmail forwarding confirmation URL (vf- prefix = verify forwarding).
-    // Search both the raw text AND any base64-encoded MIME body sections.
-    const CONFIRM_RE = /https:\/\/mail\.google\.com\/mail\/vf-[^\s\r\n"<>]+/;
-    let confirmUrl = rawEmail.match(CONFIRM_RE)?.[0] ?? null;
+    // Couldn't find an OTP — surface this to the admin so they can act on
+    // confirmation links / unusual messages.
+    const confirmUrl  = extractGmailConfirmUrl(rawEmail);
+    const bodySnippet = extractReadableBody(rawEmail);
 
-    if (!confirmUrl) {
-      const b64Sections = rawEmail.match(/([A-Za-z0-9+/]{60,}={0,2})/g) ?? [];
-      for (const section of b64Sections) {
-        try {
-          const decoded = Buffer.from(section, 'base64').toString('utf-8');
-          const m = decoded.match(CONFIRM_RE);
-          if (m) { confirmUrl = m[0]; break; }
-        } catch { /* not valid base64 */ }
-      }
-    }
+    await db.inboundMailEvent
+      .create({
+        data: {
+          to,
+          fromAddress: from ?? null,
+          subject:     subject ?? null,
+          confirmUrl,
+          bodySnippet,
+        },
+      })
+      .catch((err) => log.warn('inbound_email.event_create_failed', { err: String(err) }));
 
     log.warn('inbound_email.otp_not_found', {
       to,
-      subject: body.subject?.slice(0, 80),
-      ...(confirmUrl ? { gmailConfirmUrl: confirmUrl } : { bodySnippet: rawEmail.slice(0, 400) }),
+      subject: subject?.slice(0, 80),
+      hasConfirmUrl: !!confirmUrl,
     });
-    // Return 200 so Cloudflare doesn't retry indefinitely
-    return new Response('OK – OTP not found', { status: 200 });
+    return new Response('OK – stored for admin review', { status: 200 });
   }
 
   // Find Allowlist row by inbound address (case-insensitive)
@@ -130,8 +214,8 @@ export async function POST(req: NextRequest) {
   });
 
   // Forward the code to the creator's own email under Orcazo branding
-  const { subject, html } = loginCodeEmail({ code: otp });
-  await sendEmail({ to: entry.email, subject, html });
+  const tpl = loginCodeEmail({ code: otp });
+  await sendEmail({ to: entry.email, subject: tpl.subject, html: tpl.html });
 
   log.info('inbound_email.otp_stored', {
     publicEmail: entry.email,

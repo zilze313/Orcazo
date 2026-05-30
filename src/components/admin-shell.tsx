@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
-  Activity, Film, UserCog, Settings, Gift, Send, MailPlus,
+  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -20,6 +20,7 @@ interface BadgeCounts {
   payouts: number;
   loginRequests: number;
   messages: number;
+  inboundMail: number;
 }
 
 const BADGE_KEY: Record<string, keyof BadgeCounts> = {
@@ -27,6 +28,7 @@ const BADGE_KEY: Record<string, keyof BadgeCounts> = {
   '/admin/payouts':         'payouts',
   '/admin/login-requests':  'loginRequests',
   '/admin/messages':        'messages',
+  '/admin/inbound-mail':    'inboundMail',
 };
 
 const NAV = [
@@ -34,6 +36,7 @@ const NAV = [
   { href: '/admin/creator-signups',  label: 'Creator signups',    icon: UserPlus,        permission: 'creators' },
   { href: '/admin/payouts',          label: 'Payouts',            icon: Wallet,          permission: 'payouts' },
   { href: '/admin/login-requests',   label: 'Login requests',     icon: KeyRound,        permission: 'login-requests' },
+  { href: '/admin/inbound-mail',     label: 'Inbound mail',       icon: Inbox,           permission: 'login-requests' },
   { href: '/admin/allowlist',        label: 'Allowlist',          icon: ShieldCheck,     permission: 'creators' },
   { href: '/admin/managed-emails',   label: 'Managed emails',     icon: AtSign,          permission: 'managed-emails' },
   { href: '/admin/employees',        label: 'Employees',          icon: Users,           permission: 'creators' },

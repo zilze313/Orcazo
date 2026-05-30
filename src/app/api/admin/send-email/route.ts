@@ -1,7 +1,10 @@
 // POST /api/admin/send-email
-// Send a single direct email to one creator. Admin supplies recipient email,
+// Send a single direct email to any address. Admin supplies recipient email,
 // heading, and message — we wrap the message in the Orcazo-branded template
 // (see directMessageEmail in lib/email.ts) and deliver via Resend.
+//
+// The recipient does NOT have to be a registered creator. If they happen to be
+// one, we look up their name to personalize the greeting; otherwise we skip it.
 
 import { withAdmin, ok, fail } from '@/lib/api';
 import { db } from '@/lib/db';
@@ -11,6 +14,9 @@ import { log } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// RFC 5322-ish — good enough to reject typos before we hand off to Resend.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const POST = withAdmin(async ({ req }) => {
   let body: { email?: string; heading?: string; message?: string } | null = null;
   try { body = await req.json(); } catch { return fail(400, 'Invalid JSON'); }
@@ -19,19 +25,22 @@ export const POST = withAdmin(async ({ req }) => {
   const heading = body?.heading?.trim();
   const message = body?.message?.trim();
   if (!email)   return fail(400, 'email is required');
+  if (!EMAIL_RE.test(email)) return fail(400, 'email is not a valid address');
   if (!heading) return fail(400, 'heading is required');
   if (!message) return fail(400, 'message is required');
   if (heading.length > 200) return fail(400, 'heading is too long (max 200 chars)');
   if (message.length > 10_000) return fail(400, 'message is too long (max 10,000 chars)');
 
+  // Best-effort personalization: if the address belongs to a registered
+  // creator, greet them by name. Otherwise we just send the bare template.
   const employee = await db.employee.findUnique({
     where: { email },
     select: { firstName: true, lastName: true },
-  });
-  if (!employee) return fail(404, 'No creator found with that email');
+  }).catch(() => null);
 
-  const recipientName =
-    [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || null;
+  const recipientName = employee
+    ? [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || null
+    : null;
 
   const { subject, html } = directMessageEmail({ heading, message, recipientName });
   const result = await sendEmail({ to: email, subject, html });
