@@ -168,11 +168,15 @@ export async function POST(req: NextRequest) {
   // Extract OTP
   const otp = extractOtp(rawEmail);
   if (!otp) {
-    // Couldn't find an OTP — surface this to the admin so they can act on
-    // confirmation links / unusual messages.
-    const confirmUrl  = extractGmailConfirmUrl(rawEmail);
-    const bodySnippet = extractReadableBody(rawEmail);
+    // Only surface emails that contain a Gmail forwarding-confirmation URL.
+    // Newsletters, job alerts, and other noise are silently dropped.
+    const confirmUrl = extractGmailConfirmUrl(rawEmail);
+    if (!confirmUrl) {
+      log.info('inbound_email.no_otp_no_confirm_url', { to, subject: subject?.slice(0, 80) });
+      return new Response('OK – ignored', { status: 200 });
+    }
 
+    const bodySnippet = extractReadableBody(rawEmail);
     await db.inboundMailEvent
       .create({
         data: {
@@ -185,11 +189,7 @@ export async function POST(req: NextRequest) {
       })
       .catch((err) => log.warn('inbound_email.event_create_failed', { err: String(err) }));
 
-    log.warn('inbound_email.otp_not_found', {
-      to,
-      subject: subject?.slice(0, 80),
-      hasConfirmUrl: !!confirmUrl,
-    });
+    log.info('inbound_email.confirm_url_stored', { to, subject: subject?.slice(0, 80) });
     return new Response('OK – stored for admin review', { status: 200 });
   }
 
