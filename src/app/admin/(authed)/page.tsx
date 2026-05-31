@@ -4,12 +4,22 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Users, ShieldCheck, FileText, Activity, Sparkles, AlertTriangle, Clock, DollarSign,
+  TrendingUp, UserPlus, Wallet,
 } from 'lucide-react';
+import {
+  BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api-client';
 import { formatRelative } from '@/lib/utils';
+
+interface ChartPoint {
+  date: string;
+  [key: string]: string | number;
+}
 
 interface StatsResp {
   employeeCount: number;
@@ -34,6 +44,11 @@ interface StatsResp {
     createdAt: string;
     employee: { email: string; firstName: string | null };
   }>;
+  charts: {
+    submissions: ChartPoint[];
+    signups: ChartPoint[];
+    payouts: ChartPoint[];
+  };
 }
 
 export default function AdminDashboardPage() {
@@ -104,6 +119,109 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </Card>
+
+        {/* ── Interactive Charts ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Submissions chart */}
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Submissions (30 days)
+            </h2>
+            {stats.isLoading ? (
+              <Skeleton className="h-[220px]" />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={stats.data?.charts.submissions} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} className="text-muted-foreground" />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }} labelFormatter={(v) => new Date(String(v)).toLocaleDateString()} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="success" name="Successful" fill="#22c55e" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="failed" name="Failed" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Creator signups chart */}
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <UserPlus className="h-4 w-4" /> Creator signups (30 days)
+            </h2>
+            {stats.isLoading ? (
+              <Skeleton className="h-[220px]" />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={stats.data?.charts.signups} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} className="text-muted-foreground" />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }} labelFormatter={(v) => new Date(String(v)).toLocaleDateString()} />
+                  <Area type="monotone" dataKey="signups" name="Signups" fill="#3b82f6" fillOpacity={0.15} stroke="#3b82f6" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Payouts chart */}
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Wallet className="h-4 w-4" /> Payouts (30 days)
+            </h2>
+            {stats.isLoading ? (
+              <Skeleton className="h-[220px]" />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={stats.data?.charts.payouts} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 10 }} className="text-muted-foreground" />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }} labelFormatter={(v) => new Date(String(v)).toLocaleDateString()} formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="paid" name="Paid ($)" fill="#22c55e" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="penalty" name="Penalty ($)" fill="#f97316" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Earnings breakdown pie chart */}
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <DollarSign className="h-4 w-4" /> Earnings breakdown
+            </h2>
+            {stats.isLoading ? (
+              <Skeleton className="h-[220px]" />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Paid', value: stats.data?.totalEarningsBreakdown.paid ?? 0 },
+                      { name: 'Awaiting payment', value: stats.data?.totalEarningsBreakdown.awaitingPayment ?? 0 },
+                      { name: 'Awaiting review', value: stats.data?.totalEarningsBreakdown.awaitingReview ?? 0 },
+                    ].filter((d) => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) =>
+                      `${name} ${((percent as number) * 100).toFixed(0)}%`
+                    }
+                  >
+                    <Cell fill="#22c55e" />
+                    <Cell fill="#3b82f6" />
+                    <Cell fill="#eab308" />
+                  </Pie>
+                  <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
 
         <Card className="p-5">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
