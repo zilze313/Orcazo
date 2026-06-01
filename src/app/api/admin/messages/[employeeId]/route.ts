@@ -65,6 +65,10 @@ export const POST = withAdmin(async ({ req }) => {
   const parsed = await parseBody(req, sendBody);
   if ('errorResponse' in parsed) return parsed.errorResponse;
 
+  // Schedule the "you have an unread message" email 5 minutes from now.
+  // The cron at /api/cron/notify-unread-chat picks it up if readAt is still null.
+  const notifyEmailAt = new Date(Date.now() + 5 * 60 * 1000);
+
   const message = await db.chatMessage.create({
     data: {
       employeeId,
@@ -72,6 +76,7 @@ export const POST = withAdmin(async ({ req }) => {
       content: parsed.data.content,
       mediaUrl: parsed.data.mediaUrl ?? null,
       mediaType: parsed.data.mediaType ?? null,
+      notifyEmailAt,
     },
     select: { id: true, fromAdmin: true, content: true, mediaUrl: true, mediaType: true, readAt: true, createdAt: true },
   });

@@ -40,6 +40,7 @@ export default function LoginRequestsPage() {
   const qc = useQueryClient();
   const [status, setStatus] = React.useState<Status | "all">("PENDING");
   const [page, setPage] = React.useState(1);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   const list = useQuery<ListResp>({
     queryKey: ["admin", "login-requests", status, page],
@@ -51,6 +52,11 @@ export default function LoginRequestsPage() {
     refetchInterval: 7_000,
   });
 
+  // Reset selection when filter/page changes or fresh data arrives
+  React.useEffect(() => {
+    setSelected(new Set());
+  }, [status, page]);
+
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.del(`/api/admin/login-requests/${id}`),
     onSuccess: () => {
@@ -59,6 +65,36 @@ export default function LoginRequestsPage() {
     },
     onError: () => toast.error("Could not delete."),
   });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: string[]) =>
+      api.post<{ ok: true; deleted: number }>("/api/admin/login-requests/bulk-delete", { ids }),
+    onSuccess: (data) => {
+      toast.success(`Deleted ${data.deleted} request${data.deleted === 1 ? "" : "s"}.`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["admin", "login-requests"] });
+    },
+    onError: () => toast.error("Could not delete selected."),
+  });
+
+  const visibleIds  = list.data?.requests.map((r) => r.id) ?? [];
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(visibleIds));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <>
@@ -95,23 +131,59 @@ export default function LoginRequestsPage() {
               description="When a creator clicks 'Send code', a request will appear here."
             />
           ) : (
-            <ul className="divide-y">
-              {list.data!.requests.map((req) => (
-                <RequestRow
-                  key={req.id}
-                  req={req}
-                  onDelete={() => {
-                    if (confirm(`Delete login request from ${req.publicEmail}?`)) {
-                      deleteMut.mutate(req.id);
-                    }
-                  }}
-                  onRelayed={() => {
-                    qc.invalidateQueries({ queryKey: ["admin", "login-requests"] });
-                    qc.invalidateQueries({ queryKey: ["admin", "badges"] });
-                  }}
-                />
-              ))}
-            </ul>
+            <>
+              {/* Bulk-action toolbar */}
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b bg-muted/30">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  {selected.size > 0
+                    ? `${selected.size} selected`
+                    : "Select all on this page"}
+                </label>
+                {selected.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      if (confirm(`Delete ${selected.size} login request${selected.size === 1 ? "" : "s"}?`)) {
+                        bulkDeleteMut.mutate([...selected]);
+                      }
+                    }}
+                    disabled={bulkDeleteMut.isPending}
+                  >
+                    {bulkDeleteMut.isPending
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />}
+                    Delete selected
+                  </Button>
+                )}
+              </div>
+
+              <ul className="divide-y">
+                {list.data!.requests.map((req) => (
+                  <RequestRow
+                    key={req.id}
+                    req={req}
+                    selected={selected.has(req.id)}
+                    onToggle={() => toggleOne(req.id)}
+                    onDelete={() => {
+                      if (confirm(`Delete login request from ${req.publicEmail}?`)) {
+                        deleteMut.mutate(req.id);
+                      }
+                    }}
+                    onRelayed={() => {
+                      qc.invalidateQueries({ queryKey: ["admin", "login-requests"] });
+                      qc.invalidateQueries({ queryKey: ["admin", "badges"] });
+                    }}
+                  />
+                ))}
+              </ul>
+            </>
           )}
           {list.data && list.data.pagination.totalPages > 1 && (
             <div className="px-4 border-t">
@@ -131,10 +203,14 @@ export default function LoginRequestsPage() {
 
 function RequestRow({
   req,
+  selected,
+  onToggle,
   onDelete,
   onRelayed,
 }: {
   req: LoginRequestEntry;
+  selected: boolean;
+  onToggle: () => void;
   onDelete: () => void;
   onRelayed: () => void;
 }) {
@@ -152,8 +228,15 @@ function RequestRow({
   });
 
   return (
-    <li className="p-4">
+    <li className={`p-4 ${selected ? "bg-muted/20" : ""}`}>
       <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="mt-1.5 h-4 w-4 rounded border-input flex-shrink-0"
+          aria-label={`Select request from ${req.publicEmail}`}
+        />
         <div className="min-w-0 flex-1 space-y-2">
           {/* Header row */}
           <div className="flex items-center gap-2 flex-wrap">

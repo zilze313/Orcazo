@@ -18,6 +18,9 @@ export function MarketingNav() {
 
         <div className="hidden sm:flex items-center gap-2 ml-auto">
           <Button variant="ghost" size="sm" asChild>
+            <Link href="/contact">Contact</Link>
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
             <Link href="/auth">Sign in</Link>
           </Button>
           <Button size="sm" asChild>
@@ -36,12 +39,17 @@ export function MarketingNav() {
 
       {open && (
         <div className="sm:hidden border-t bg-background">
-          <div className="container max-w-7xl px-4 py-3 flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1" asChild onClick={() => setOpen(false)}>
-              <Link href="/auth">Sign in</Link>
-            </Button>
-            <Button size="sm" className="flex-1" asChild onClick={() => setOpen(false)}>
-              <Link href="/auth?tab=signup">Get started</Link>
+          <div className="container max-w-7xl px-4 py-3 space-y-2">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" asChild onClick={() => setOpen(false)}>
+                <Link href="/auth">Sign in</Link>
+              </Button>
+              <Button size="sm" className="flex-1" asChild onClick={() => setOpen(false)}>
+                <Link href="/auth?tab=signup">Get started</Link>
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" className="w-full justify-center" asChild onClick={() => setOpen(false)}>
+              <Link href="/contact">Contact us</Link>
             </Button>
           </div>
         </div>

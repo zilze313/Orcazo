@@ -15,6 +15,7 @@ interface SettingsData {
   earningsMultiplier: number;
   referralThreshold: number;
   referralReward: number;
+  referralQualifyEarnings: number;
 }
 
 export default function AdminSettingsPage() {
@@ -28,6 +29,7 @@ export default function AdminSettingsPage() {
   const [multiplier, setMultiplier]   = React.useState('');
   const [threshold, setThreshold]     = React.useState('');
   const [reward, setReward]           = React.useState('');
+  const [qualifyEarnings, setQualifyEarnings] = React.useState('');
   const [saving, setSaving]           = React.useState(false);
 
   React.useEffect(() => {
@@ -35,22 +37,30 @@ export default function AdminSettingsPage() {
     setMultiplier(String(data.earningsMultiplier));
     setThreshold(String(data.referralThreshold));
     setReward(String(data.referralReward));
+    setQualifyEarnings(String(data.referralQualifyEarnings));
   }, [data]);
 
   async function save() {
     const m = parseFloat(multiplier);
     const t = parseInt(threshold, 10);
     const r = parseFloat(reward);
+    const q = parseFloat(qualifyEarnings);
     if (!Number.isFinite(m) || m <= 0) { toast.error('Multiplier must be a positive number'); return; }
     if (!Number.isFinite(t) || t < 1)  { toast.error('Referral threshold must be ≥ 1'); return; }
     if (!Number.isFinite(r) || r < 0)  { toast.error('Reward amount must be ≥ 0'); return; }
+    if (!Number.isFinite(q) || q < 0)  { toast.error('Qualify earnings must be ≥ 0'); return; }
 
     setSaving(true);
     try {
       await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ earningsMultiplier: m, referralThreshold: t, referralReward: r }),
+        body: JSON.stringify({
+          earningsMultiplier:      m,
+          referralThreshold:       t,
+          referralReward:          r,
+          referralQualifyEarnings: q,
+        }),
       });
       toast.success('Settings saved');
       qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
@@ -96,11 +106,14 @@ export default function AdminSettingsPage() {
         <Card className="p-5 space-y-4">
           <h3 className="font-semibold text-sm">Referral reward</h3>
           <p className="text-xs text-muted-foreground">
-            Creators see a locked treasure on the Referrals page. Once they reach the threshold, they can submit a claim request.
+            Creators see a locked treasure on the Referrals page. Once they reach the threshold of
+            <strong> qualified</strong> referrals, they can submit a claim request. A referral is
+            qualified only after the referred creator has earned the required amount on the platform
+            — this prevents smurf-account farming.
           </p>
-          <div className="grid grid-cols-2 gap-4 max-w-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
             <div className="space-y-1.5">
-              <Label>Threshold (referrals needed)</Label>
+              <Label>Threshold (qualified)</Label>
               <Input
                 type="number"
                 min="1"
@@ -120,6 +133,18 @@ export default function AdminSettingsPage() {
                 placeholder="100"
                 value={reward}
                 onChange={(e) => setReward(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Qualify earnings ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="100"
+                value={qualifyEarnings}
+                onChange={(e) => setQualifyEarnings(e.target.value)}
                 disabled={isLoading}
               />
             </div>

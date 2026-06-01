@@ -5,9 +5,12 @@ import 'server-only';
 import { db } from './db';
 
 export const KEYS = {
-  EARNINGS_MULTIPLIER: 'earningsMultiplier',
-  REFERRAL_THRESHOLD:  'referralThreshold',
-  REFERRAL_REWARD:     'referralReward',
+  EARNINGS_MULTIPLIER:        'earningsMultiplier',
+  REFERRAL_THRESHOLD:         'referralThreshold',
+  REFERRAL_REWARD:            'referralReward',
+  /// Minimum earnings a referred creator must accumulate before they count
+  /// towards the referrer's reward threshold. Prevents smurf-account farming.
+  REFERRAL_QUALIFY_EARNINGS:  'referralQualifyEarnings',
 } as const;
 
 async function getRaw(key: string): Promise<string | null> {
@@ -19,9 +22,10 @@ export async function getAllSettings() {
   const rows = await db.adminSetting.findMany().catch(() => [] as Array<{ key: string; value: string }>);
   const map = new Map(rows.map((r) => [r.key, r.value]));
   return {
-    earningsMultiplier: parseMultiplier(map.get(KEYS.EARNINGS_MULTIPLIER)),
-    referralThreshold:  parseThreshold(map.get(KEYS.REFERRAL_THRESHOLD)),
-    referralReward:     parseReward(map.get(KEYS.REFERRAL_REWARD)),
+    earningsMultiplier:      parseMultiplier(map.get(KEYS.EARNINGS_MULTIPLIER)),
+    referralThreshold:       parseThreshold(map.get(KEYS.REFERRAL_THRESHOLD)),
+    referralReward:          parseReward(map.get(KEYS.REFERRAL_REWARD)),
+    referralQualifyEarnings: parseQualifyEarnings(map.get(KEYS.REFERRAL_QUALIFY_EARNINGS)),
   };
 }
 
@@ -40,19 +44,26 @@ function parseReward(v: string | undefined): number {
   const n = parseFloat(v);
   return Number.isFinite(n) && n >= 0 ? n : 100;
 }
+function parseQualifyEarnings(v: string | undefined): number {
+  if (!v) return 100;
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n >= 0 ? n : 100;
+}
 
 export async function getEarningsMultiplier(): Promise<number> {
   return parseMultiplier(await getRaw(KEYS.EARNINGS_MULTIPLIER) ?? undefined);
 }
 
-export async function getReferralConfig(): Promise<{ threshold: number; reward: number }> {
-  const [t, r] = await Promise.all([
+export async function getReferralConfig(): Promise<{ threshold: number; reward: number; qualifyEarnings: number }> {
+  const [t, r, q] = await Promise.all([
     getRaw(KEYS.REFERRAL_THRESHOLD),
     getRaw(KEYS.REFERRAL_REWARD),
+    getRaw(KEYS.REFERRAL_QUALIFY_EARNINGS),
   ]);
   return {
-    threshold: parseThreshold(t ?? undefined),
-    reward:    parseReward(r ?? undefined),
+    threshold:       parseThreshold(t ?? undefined),
+    reward:          parseReward(r ?? undefined),
+    qualifyEarnings: parseQualifyEarnings(q ?? undefined),
   };
 }
 

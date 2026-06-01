@@ -51,6 +51,15 @@ const SOCIAL_PLATFORMS = [
   "facebook",
 ] as const;
 
+// Public contact form — works for logged-in creators and visitors alike.
+export const contactMessageBody = z.object({
+  name:           z.string().trim().min(2, "Enter your name").max(120),
+  email:          emailSchema,
+  subject:        z.string().trim().min(3, "Add a subject").max(200),
+  message:        z.string().trim().min(10, "Tell us a bit more").max(5000),
+  turnstileToken: z.string().min(1, "Captcha required"),
+});
+
 export const creatorSignupBody = z.object({
   publicEmail: emailSchema,
   fullName: z.string().trim().min(2, "Please enter your full name").max(120),

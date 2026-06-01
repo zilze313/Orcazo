@@ -1,5 +1,6 @@
 // POST /api/referrals/claim
-// Creator submits a claim for their referral reward once the threshold is met.
+// Creator submits a claim for their referral reward once enough QUALIFIED
+// referrals have earned referralQualifyEarnings each on the platform.
 // Only one PENDING/APPROVED claim per employee is allowed.
 
 import { withEmployee, ok, fail } from '@/lib/api';
@@ -10,10 +11,15 @@ import { getReferralConfig } from '@/lib/settings';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export const POST = withEmployee(async ({ session }) => {
-  const { threshold, reward } = await getReferralConfig();
+function decNum(v: unknown): number {
+  if (v == null) return 0;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : 0;
+}
 
-  // Count referrals for this employee
+export const POST = withEmployee(async ({ session }) => {
+  const { threshold, reward, qualifyEarnings } = await getReferralConfig();
+
   const ownerNote = `creator:${session.employeeId}`;
   const referralCode = await db.referralCode.findFirst({
     where: { note: ownerNote },
@@ -21,12 +27,48 @@ export const POST = withEmployee(async ({ session }) => {
   });
   if (!referralCode) return fail(400, 'No referral code found for your account.', 'NO_CODE');
 
-  const referralCount = await db.creatorSignupRequest.count({
+  // Look up referred signups + their employees + their lifetime earnings
+  const signups = await db.creatorSignupRequest.findMany({
     where: { referralCode: referralCode.code },
+    select: { publicEmail: true },
   });
 
-  if (referralCount < threshold) {
-    return fail(400, `You need ${threshold} referrals to claim. You have ${referralCount}.`, 'BELOW_THRESHOLD');
+  const totalReferred = signups.length;
+  let qualifiedCount = 0;
+
+  if (signups.length > 0) {
+    const emails = signups.map((s) => s.publicEmail);
+    const employees = await db.employee.findMany({
+      where: { email: { in: emails } },
+      select: { id: true, cachedWaitingPayment: true, cachedWaitingReview: true },
+    });
+
+    const paidAgg = employees.length
+      ? await db.payoutRequest.groupBy({
+          by: ['employeeId'],
+          where: { employeeId: { in: employees.map((e) => e.id) }, status: 'PAID' },
+          _sum: { amountPaid: true },
+        })
+      : [];
+    const paidByEmployeeId = new Map(
+      paidAgg.map((r) => [r.employeeId, decNum(r._sum.amountPaid)]),
+    );
+
+    for (const e of employees) {
+      const earnings =
+        decNum(e.cachedWaitingPayment) +
+        decNum(e.cachedWaitingReview) +
+        (paidByEmployeeId.get(e.id) ?? 0);
+      if (earnings >= qualifyEarnings) qualifiedCount++;
+    }
+  }
+
+  if (qualifiedCount < threshold) {
+    return fail(
+      400,
+      `You need ${threshold} qualified referrals (each having earned at least $${qualifyEarnings}). You have ${qualifiedCount} qualified out of ${totalReferred} total.`,
+      'BELOW_THRESHOLD',
+    );
   }
 
   // Check for existing open/approved claim
@@ -43,7 +85,7 @@ export const POST = withEmployee(async ({ session }) => {
   const claim = await db.referralClaim.create({
     data: {
       employeeId:   session.employeeId,
-      referralCount,
+      referralCount: qualifiedCount,
       threshold,
       rewardAmount: new Prisma.Decimal(reward.toFixed(2)),
     },

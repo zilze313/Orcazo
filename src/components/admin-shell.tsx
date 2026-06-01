@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
-  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox,
+  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox, Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -21,14 +21,16 @@ interface BadgeCounts {
   loginRequests: number;
   messages: number;
   inboundMail: number;
+  contactMessages: number;
 }
 
 const BADGE_KEY: Record<string, keyof BadgeCounts> = {
-  '/admin/creator-signups': 'creatorSignups',
-  '/admin/payouts':         'payouts',
-  '/admin/login-requests':  'loginRequests',
-  '/admin/messages':        'messages',
-  '/admin/inbound-mail':    'inboundMail',
+  '/admin/creator-signups':   'creatorSignups',
+  '/admin/payouts':           'payouts',
+  '/admin/login-requests':    'loginRequests',
+  '/admin/messages':          'messages',
+  '/admin/inbound-mail':      'inboundMail',
+  '/admin/contact-messages':  'contactMessages',
 };
 
 const NAV = [
@@ -46,6 +48,7 @@ const NAV = [
   { href: '/admin/announcements',    label: 'Announcements',      icon: Megaphone,       permission: 'content' },
   { href: '/admin/referral-codes',   label: 'Referral Codes',     icon: Tag,             permission: 'referral-codes' },
   { href: '/admin/messages',         label: 'Messages',           icon: MessageSquare,   permission: 'messages' },
+  { href: '/admin/contact-messages', label: 'Contact form',       icon: Mail,            permission: 'messages' },
   { href: '/admin/homepage-videos',  label: 'Homepage Videos',    icon: Film,            permission: 'content' },
   { href: '/admin/health',           label: 'Health',             icon: Activity,        permission: 'health' },
   { href: '/admin/admins',           label: 'Admins',             icon: UserCog,         permission: 'admins' },

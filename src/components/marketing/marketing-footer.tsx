@@ -37,9 +37,9 @@ export function MarketingFooter() {
               </a>
             </li>
             <li>
-              <a href="#" className="hover:text-foreground">
+              <Link href="/contact" className="hover:text-foreground">
                 Contact
-              </a>
+              </Link>
             </li>
             <li>
               <a href="#" className="hover:text-foreground">

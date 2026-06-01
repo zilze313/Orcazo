@@ -240,6 +240,37 @@ export function directMessageEmail(opts: {
   };
 }
 
+export function unreadChatMessageEmail(opts: {
+  displayName?: string | null;
+  preview: string;
+  chatUrl: string;
+}): { subject: string; html: string } {
+  const { displayName, preview, chatUrl } = opts;
+  const trimmed = preview.length > 240 ? preview.slice(0, 240) + '…' : preview;
+  return {
+    subject: 'You have a new message from the Orcazo support team',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 12px;">${displayName ? 'Hi ' + escapeHtml(displayName) + ',' : 'Hi,'}</h1>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+          Our support team sent you a message a few minutes ago but it's still unread.
+          Here's a preview:
+        </p>
+        <blockquote style="margin: 0 0 20px; padding: 14px 16px; border-left: 3px solid #111; background: #f7f7f7; font-size: 14px; line-height: 1.55; white-space: pre-wrap;">${escapeHtml(trimmed)}</blockquote>
+        <p style="text-align:center; margin: 24px 0;">
+          <a href="${chatUrl}" style="display:inline-block; padding: 10px 18px; background: #111; color: #fff; text-decoration:none; border-radius: 6px; font-size: 14px; font-weight: 600;">Open your inbox</a>
+        </p>
+        <p style="font-size: 12px; color: #888; line-height: 1.6; margin: 24px 0 0; text-align:center;">
+          You're receiving this because you have an unread support message. Once you open the chat, no further reminders will be sent.
+        </p>
+      </div>
+    `.trim(),
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

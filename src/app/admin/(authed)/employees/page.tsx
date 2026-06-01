@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+import { formatRelative } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -33,6 +34,7 @@ interface Employee {
   cachedWaitingReview: string | null;
   showFullHistory: boolean;
   adminNotes: string | null;
+  lastLoginAt: string | null;
   lastSyncedAt: string | null;
   createdAt: string;
   firstSocial: { platform: string; handle: string } | null;
@@ -69,6 +71,7 @@ const COLUMNS: Array<{
   { field: null, label: "Awaiting review", align: "right" },
   { field: null, label: "Full history", align: "center" },
   { field: "createdAt", label: "Joined" },
+  { field: null, label: "Last login" },
   { field: null, label: "Notes" },
 ];
 
@@ -336,6 +339,14 @@ export default function AdminEmployeesPage() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(e.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell
+                      className="text-xs text-muted-foreground whitespace-nowrap"
+                      title={e.lastLoginAt ? new Date(e.lastLoginAt).toLocaleString() : "Never logged in"}
+                    >
+                      {e.lastLoginAt
+                        ? formatRelative(e.lastLoginAt)
+                        : <span className="italic">Never</span>}
                     </TableCell>
                     <TableCell>
                       <Input

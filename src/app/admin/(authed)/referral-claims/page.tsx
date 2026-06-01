@@ -239,7 +239,7 @@ function ClaimRow({ claim, onApprove, onReject }: { claim: Claim; onApprove: () 
 
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
             <span>
-              {claim.referralCount}/{claim.threshold} referrals
+              {claim.referralCount}/{claim.threshold} qualified referrals
             </span>
             <span>·</span>
             <span className="font-medium text-foreground">{formatMoney(claim.rewardAmount)} reward</span>

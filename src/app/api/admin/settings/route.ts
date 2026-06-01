@@ -33,6 +33,11 @@ export const PUT = withAdmin(async ({ req }) => {
     if (!Number.isFinite(v) || v < 0) return fail(400, 'referralReward must be ≥ 0');
     updates.push(setSetting(KEYS.REFERRAL_REWARD, String(v)));
   }
+  if ('referralQualifyEarnings' in body) {
+    const v = parseFloat(String(body.referralQualifyEarnings));
+    if (!Number.isFinite(v) || v < 0) return fail(400, 'referralQualifyEarnings must be ≥ 0');
+    updates.push(setSetting(KEYS.REFERRAL_QUALIFY_EARNINGS, String(v)));
+  }
 
   await Promise.all(updates);
   return ok({ ok: true });

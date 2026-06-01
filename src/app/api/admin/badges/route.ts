@@ -8,13 +8,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export const GET = withAdmin(async () => {
-  const [creatorSignups, payouts, loginRequests, messages, inboundMail] = await Promise.all([
+  const [creatorSignups, payouts, loginRequests, messages, inboundMail, contactMessages] = await Promise.all([
     db.creatorSignupRequest.count({ where: { status: 'PENDING' } }),
     db.payoutRequest.count({ where: { status: { in: ['REQUESTED', 'IN_PROGRESS'] } } }),
     db.loginRequest.count({ where: { status: 'PENDING' } }),
     db.chatMessage.count({ where: { fromAdmin: false, readAt: null } }),
     db.inboundMailEvent.count({ where: { dismissedAt: null } }),
+    db.contactMessage.count({ where: { status: 'NEW' } }),
   ]);
 
-  return ok({ creatorSignups, payouts, loginRequests, messages, inboundMail });
+  return ok({ creatorSignups, payouts, loginRequests, messages, inboundMail, contactMessages });
 });

@@ -360,11 +360,18 @@ model ChatMessage {
   /// MIME type of the attached media (e.g. "image/jpeg").
   mediaType  String?
   readAt     DateTime?
+  /// For admin → creator messages: when the unread notification email becomes due
+  /// (set to createdAt + 5 minutes on send). null = no notification scheduled.
+  notifyEmailAt     DateTime?
+  /// Set when we actually send the unread-message email — idempotency guard.
+  notifyEmailSentAt DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([employeeId, createdAt(sort: Asc)])
   @@index([fromAdmin, readAt])
   @@index([createdAt(sort: Desc)])
+  /// Speeds up the cron lookup for due notifications.
+  @@index([notifyEmailAt, notifyEmailSentAt])
 }
 
 /// Campaign showcase videos displayed in the homepage infinite carousel.
@@ -439,4 +446,33 @@ model BroadcastEmail {
   createdAt      DateTime @default(now())
 
   @@index([createdAt(sort: Desc)])
+}
+
+/// Public contact-form submissions. Available to anyone, even without an account.
+/// Status workflow: NEW → RESOLVED (admin replied) or DISMISSED (spam / no action).
+model ContactMessage {
+  id          String               @id @default(cuid())
+  name        String               @db.VarChar(120)
+  email       String               @db.VarChar(254)
+  subject     String               @db.VarChar(200)
+  message     String               @db.Text
+  /// Set when the sender is a logged-in creator (linked Employee.id), else null.
+  employeeId  String?
+  ipAddress   String?              @db.VarChar(64)
+  userAgent   String?              @db.Text
+  status      ContactMessageStatus @default(NEW)
+  adminNote   String?              @db.Text
+  resolvedAt  DateTime?
+  dismissedAt DateTime?
+  createdAt   DateTime             @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([email])
+  @@index([createdAt(sort: Desc)])
+}
+
+enum ContactMessageStatus {
+  NEW
+  RESOLVED
+  DISMISSED
 }

@@ -103,15 +103,18 @@ export const GET = withEmployee(async ({ session }) => {
   }
 
   // ── Baseline-adjusted balance ─────────────────────────────────────────────
+  // Available balance pools both upstream.totalWaitingPayment (approved on AffiliateNetwork)
+  // and upstream.totalPaid (paid by AffiliateNetwork to admin, still owed to creator),
+  // then deducts the full amountAtRequest of every PAID DB request (penalty stays gone).
   const showFull = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
+  const bPaid    = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid)           : decNum(employee?.baselineTotalPaid));
 
-  // Available balance = (upstream waitingPayment - baseline) * M
-  //                   - sum(amountAtRequest on PAID requests)
-  // The full amountAtRequest is deducted — penalties are permanently gone,
-  // not returned to the creator's balance.
-  const grossWaiting   = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const grossWaiting   = (
+    Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) +
+    Math.max(0, num(dashResp?.totalPaid)           - bPaid)
+  ) * M;
   const totalPaidByUs  = decNum(paidAggregate._sum.amountPaid);      // for "Total paid out" stat
   const totalDeducted  = decNum(paidAggregate._sum.amountAtRequest);  // for balance deduction
   const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
@@ -174,7 +177,12 @@ export const POST = withEmployee(async ({ req, session }) => {
     ).catch(() => null),
     db.employee.findUnique({
       where: { id: session.employeeId },
-      select: { baselineWaitingPayment: true, baselineCapturedAt: true, showFullHistory: true },
+      select: {
+        baselineWaitingPayment: true,
+        baselineTotalPaid:      true,
+        baselineCapturedAt:     true,
+        showFullHistory:        true,
+      },
     }),
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
@@ -186,7 +194,11 @@ export const POST = withEmployee(async ({ req, session }) => {
   const showFull = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : parseFloat(String(employee?.baselineWaitingPayment ?? 0)) || 0);
-  const grossWaiting  = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) * M;
+  const bPaid    = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid)           : parseFloat(String(employee?.baselineTotalPaid      ?? 0)) || 0);
+  const grossWaiting  = (
+    Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) +
+    Math.max(0, num(dashResp?.totalPaid)           - bPaid)
+  ) * M;
   const totalDeducted = parseFloat(String(paidAggregate._sum.amountAtRequest ?? 0)) || 0;
   const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
 

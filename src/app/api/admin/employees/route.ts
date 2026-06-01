@@ -69,6 +69,7 @@ export const GET = withAdmin(async ({ req }) => {
         cachedWaitingReview: true,
         showFullHistory: true,
         adminNotes: true,
+        lastLoginAt: true,
         lastSyncedAt: true,
         createdAt: true,
       },

@@ -71,6 +71,7 @@ export const GET = withEmployee(async ({ req, session }) => {
     db.employee.findUnique({
       where: { id: session.employeeId },
       select: {
+        baselineTotalPaid:      true,
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
         baselineCapturedAt:     true,
@@ -151,17 +152,25 @@ export const GET = withEmployee(async ({ req, session }) => {
   // ── Baseline-adjusted summary totals ─────────────────────────────────────
   // showFull → no subtraction (baseline = 0, show raw upstream * 2).
   // First load → use current upstream as baseline so totals start at zero.
+  // "Waiting payment" rolls in upstream.totalPaid too: from the creator's
+  // perspective that's money AffiliateNetwork paid to the admin which still
+  // needs to flow to the creator — so it's awaiting payment from admin.
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
+  const bPaid    = showFull ? 0 : (isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid));
   const bPayment = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const bReview  = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
   // Deduct full amountAtRequest (not just amountPaid) so penalties are gone from balance
-  const totalDeducted = decNum(dbPaidAgg._sum.amountAtRequest);
+  const totalDeducted  = decNum(dbPaidAgg._sum.amountAtRequest);
+  const accruedPayment = (
+    Math.max(0, num(resp.totalWaitingPayment) - bPayment) +
+    Math.max(0, num(resp.totalPaid)           - bPaid)
+  ) * M;
 
   const summary = {
     totalCount:          total,
     totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * M,
-    totalWaitingPayment: Math.max(0, Math.max(0, num(resp.totalWaitingPayment) - bPayment) * M - totalDeducted),
+    totalWaitingPayment: Math.max(0, accruedPayment - totalDeducted),
     // totalPaid comes from our own DB — sum of amountPaid on PAID payout requests
     totalPaid:           decNum(dbPaidAgg._sum.amountPaid),
   };

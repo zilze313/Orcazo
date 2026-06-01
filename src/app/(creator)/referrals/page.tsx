@@ -25,6 +25,8 @@ interface Referral {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   date: string;
   code: string;
+  earnings: number;
+  qualified: boolean;
 }
 
 interface LatestClaim {
@@ -39,10 +41,12 @@ interface LatestClaim {
 interface ReferralsResp {
   code: string | null;
   totalReferred: number;
+  qualifiedReferrals: number;
   referrals: Referral[];
   reward: {
     threshold: number;
     amount: number;
+    qualifyEarnings: number;
     thresholdMet: boolean;
     canClaim: boolean;
     latestClaim: LatestClaim | null;
@@ -81,13 +85,15 @@ export default function ReferralsPage() {
     });
   };
 
-  const reward   = query.data?.reward;
-  const total    = query.data?.totalReferred ?? 0;
-  const threshold = reward?.threshold ?? 3;
-  const progress  = Math.min(100, Math.round((total / threshold) * 100));
-  const unlocked  = reward?.thresholdMet ?? false;
-  const canClaim  = reward?.canClaim ?? false;
-  const claim     = reward?.latestClaim ?? null;
+  const reward     = query.data?.reward;
+  const total      = query.data?.totalReferred ?? 0;
+  const qualified  = query.data?.qualifiedReferrals ?? 0;
+  const threshold  = reward?.threshold ?? 3;
+  const qualifyEarnings = reward?.qualifyEarnings ?? 100;
+  const progress   = Math.min(100, Math.round((qualified / threshold) * 100));
+  const unlocked   = reward?.thresholdMet ?? false;
+  const canClaim   = reward?.canClaim ?? false;
+  const claim      = reward?.latestClaim ?? null;
 
   return (
     <>
@@ -142,17 +148,17 @@ export default function ReferralsPage() {
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {unlocked
-                      ? `You've referred ${total} creators — the reward is yours to claim.`
-                      : `Refer ${threshold - total} more creator${threshold - total === 1 ? '' : 's'} to unlock ${formatMoney(reward?.amount ?? 100)}.`
+                      ? `${qualified} of your referrals have each earned ${formatMoney(qualifyEarnings)}+ — the reward is yours to claim.`
+                      : `Refer ${threshold - qualified} more creator${threshold - qualified === 1 ? '' : 's'} who each earn ${formatMoney(qualifyEarnings)}+ to unlock ${formatMoney(reward?.amount ?? 100)}.`
                     }
                   </p>
                 </div>
               </div>
 
               {/* Progress bar */}
-              <div className="mb-4">
+              <div className="mb-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>{total} / {threshold} referrals</span>
+                  <span>{qualified} / {threshold} qualified referrals</span>
                   <span>{progress}%</span>
                 </div>
                 <div className="h-3 rounded-full bg-secondary overflow-hidden">
@@ -163,11 +169,18 @@ export default function ReferralsPage() {
                 </div>
               </div>
 
+              <p className="text-xs text-muted-foreground mb-4">
+                A referral counts only after they've earned {formatMoney(qualifyEarnings)} or more on the platform.
+                {total > qualified && (
+                  <> You currently have {total} signup{total === 1 ? '' : 's'} — {total - qualified} still need to reach the earnings threshold.</>
+                )}
+              </p>
+
               {/* Claim state */}
               {!unlocked && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Lock className="h-4 w-4" />
-                  Complete {threshold - total} more referral{threshold - total === 1 ? '' : 's'} to unlock
+                  {threshold - qualified} more qualified referral{threshold - qualified === 1 ? '' : 's'} to unlock
                 </div>
               )}
 
@@ -212,6 +225,8 @@ export default function ReferralsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Earned</TableHead>
+                  <TableHead>Qualified</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -225,6 +240,19 @@ export default function ReferralsPage() {
                         <Badge variant={meta.variant} className="text-[10px]">
                           {meta.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {formatMoney(r.earnings)}
+                        <span className="text-muted-foreground"> / {formatMoney(qualifyEarnings)}</span>
+                      </TableCell>
+                      <TableCell>
+                        {r.qualified ? (
+                          <Badge variant="success" className="text-[10px] gap-1">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Qualified
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Not yet</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(r.date).toLocaleDateString()}
