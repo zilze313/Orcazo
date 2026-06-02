@@ -1,40 +1,48 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Megaphone, Heart, CheckCircle2, Clock, XCircle } from 'lucide-react';
-import { PageHeader } from '@/components/page-header';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { EmptyState } from '@/components/empty-state';
-import { CampaignsResponse } from '@/components/campaigns/types';
-import { CampaignCard } from '@/components/campaigns/campaign-card';
-import { PlatformIcon } from '@/components/platform-icon';
-import { formatRelative } from '@/lib/utils';
-import { api, isUpstreamExpired } from '@/lib/api-client';
-import * as React from 'react';
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { Megaphone, Heart, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
+import { CampaignsResponse } from "@/components/campaigns/types";
+import { CampaignCard } from "@/components/campaigns/campaign-card";
+import { PlatformIcon } from "@/components/platform-icon";
+import { formatRelative } from "@/lib/utils";
+import { api, isUpstreamExpired } from "@/lib/api-client";
+import * as React from "react";
 
-const STATUS_META: Record<string, { variant: 'success' | 'warning' | 'destructive' | 'secondary'; icon: React.ComponentType<{ className?: string }>; label: string }> = {
-  approved: { variant: 'success',     icon: CheckCircle2, label: 'Approved' },
-  pending:  { variant: 'warning',     icon: Clock,        label: 'Pending'  },
-  rejected: { variant: 'destructive', icon: XCircle,      label: 'Rejected' },
+const STATUS_META: Record<
+  string,
+  {
+    variant: "success" | "warning" | "destructive" | "secondary";
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+  }
+> = {
+  approved: { variant: "success", icon: CheckCircle2, label: "Approved" },
+  pending: { variant: "warning", icon: Clock, label: "Pending" },
+  rejected: { variant: "destructive", icon: XCircle, label: "Rejected" },
 };
 
 export default function MyCampaignsPage() {
   const router = useRouter();
 
   const query = useQuery<CampaignsResponse>({
-    queryKey: ['campaigns', 'mine'],
-    queryFn: () => api.get<CampaignsResponse>(`/api/campaigns?page=1&pageSize=60`),
+    queryKey: ["campaigns", "mine"],
+    queryFn: () =>
+      api.get<CampaignsResponse>(`/api/campaigns?page=1&pageSize=60`),
     staleTime: 15_000,
   });
 
   React.useEffect(() => {
-    if (query.error && isUpstreamExpired(query.error)) router.replace('/login');
+    if (query.error && isUpstreamExpired(query.error)) router.replace("/login");
   }, [query.error, router]);
 
   const campaigns = query.data?.items ?? [];
@@ -43,15 +51,24 @@ export default function MyCampaignsPage() {
   const appliedRows = campaigns
     .filter((c) => c.applications.length > 0)
     .flatMap((c) => c.applications.map((a) => ({ campaign: c, app: a })))
-    .sort((a, b) => new Date(b.app.appliedAt).getTime() - new Date(a.app.appliedAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.app.appliedAt).getTime() -
+        new Date(a.app.appliedAt).getTime(),
+    );
 
   return (
     <>
-      <PageHeader title="My Campaigns" description="Your favorited campaigns and your applications." />
+      <PageHeader
+        title="My Campaigns"
+        description="Your favorited campaigns and your applications."
+      />
       <div className="container max-w-7xl py-6 space-y-8">
         {query.isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-72" />)}
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-72" />
+            ))}
           </div>
         ) : (
           <>
@@ -82,6 +99,7 @@ export default function MyCampaignsPage() {
             </section>
 
             {/* Applications */}
+            {/*  
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Megaphone className="h-4 w-4" />
@@ -126,7 +144,7 @@ export default function MyCampaignsPage() {
                   })}
                 </div>
               )}
-            </section>
+            </section> */}
           </>
         )}
       </div>
