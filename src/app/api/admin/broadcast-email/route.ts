@@ -12,7 +12,10 @@ import { log } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-init: avoid throwing at module load if RESEND_API_KEY isn't set
+// (e.g. during `next build` page-data collection without env vars).
+const apiKey = process.env.RESEND_API_KEY;
+const resend = apiKey ? new Resend(apiKey) : null;
 const FROM   = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'Orcazo <noreply@orcazo.com>';
 
 export const POST = withAdmin(async ({ req }) => {
@@ -23,6 +26,10 @@ export const POST = withAdmin(async ({ req }) => {
   const bodyHtml = body?.bodyHtml?.trim();
   if (!subject)  return fail(400, 'subject is required');
   if (!bodyHtml) return fail(400, 'bodyHtml is required');
+
+  if (!resend) {
+    return fail(503, 'Email service not configured (RESEND_API_KEY missing)', 'RESEND_NOT_CONFIGURED');
+  }
 
   // Union of every onboarded creator's email (Allowlist ∪ Employee), deduped.
   const [allowed, employees] = await Promise.all([
