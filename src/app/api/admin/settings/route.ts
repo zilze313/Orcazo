@@ -38,6 +38,15 @@ export const PUT = withAdmin(async ({ req }) => {
     if (!Number.isFinite(v) || v < 0) return fail(400, 'referralQualifyEarnings must be ≥ 0');
     updates.push(setSetting(KEYS.REFERRAL_QUALIFY_EARNINGS, String(v)));
   }
+  if ('proxyReclaimEnabled' in body) {
+    const v = body.proxyReclaimEnabled === true || body.proxyReclaimEnabled === '1' || body.proxyReclaimEnabled === 'true';
+    updates.push(setSetting(KEYS.PROXY_RECLAIM_ENABLED, v ? '1' : '0'));
+  }
+  if ('proxyReclaimProtectEarnings' in body) {
+    const v = parseFloat(String(body.proxyReclaimProtectEarnings));
+    if (!Number.isFinite(v) || v < 0) return fail(400, 'proxyReclaimProtectEarnings must be ≥ 0');
+    updates.push(setSetting(KEYS.PROXY_RECLAIM_PROTECT_EARNINGS, String(v)));
+  }
 
   await Promise.all(updates);
   return ok({ ok: true });

@@ -66,6 +66,11 @@ model Allowlist {
   pendingOtp          String?   // latest OTP extracted from an inbound email
   pendingOtpAt        DateTime? // when the OTP arrived (used for TTL checks)
 
+  // Idle-proxy reclamation: set when we email the creator a "log in or lose access"
+  // warning. The reclaim cron detaches the proxy 48h later if they're still idle.
+  // Cleared automatically once they're no longer eligible (logged back in / earned).
+  reclaimWarningSentAt DateTime?
+
   @@index([email])
   @@index([proxyEmail])
   @@index([inboundAddress])

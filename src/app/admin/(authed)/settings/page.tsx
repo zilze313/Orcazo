@@ -16,6 +16,8 @@ interface SettingsData {
   referralThreshold: number;
   referralReward: number;
   referralQualifyEarnings: number;
+  proxyReclaimEnabled: boolean;
+  proxyReclaimProtectEarnings: number;
 }
 
 export default function AdminSettingsPage() {
@@ -30,6 +32,8 @@ export default function AdminSettingsPage() {
   const [threshold, setThreshold]     = React.useState('');
   const [reward, setReward]           = React.useState('');
   const [qualifyEarnings, setQualifyEarnings] = React.useState('');
+  const [reclaimEnabled, setReclaimEnabled]   = React.useState(false);
+  const [protectEarnings, setProtectEarnings] = React.useState('');
   const [saving, setSaving]           = React.useState(false);
 
   React.useEffect(() => {
@@ -38,6 +42,8 @@ export default function AdminSettingsPage() {
     setThreshold(String(data.referralThreshold));
     setReward(String(data.referralReward));
     setQualifyEarnings(String(data.referralQualifyEarnings));
+    setReclaimEnabled(Boolean(data.proxyReclaimEnabled));
+    setProtectEarnings(String(data.proxyReclaimProtectEarnings));
   }, [data]);
 
   async function save() {
@@ -45,10 +51,12 @@ export default function AdminSettingsPage() {
     const t = parseInt(threshold, 10);
     const r = parseFloat(reward);
     const q = parseFloat(qualifyEarnings);
+    const pe = parseFloat(protectEarnings);
     if (!Number.isFinite(m) || m <= 0) { toast.error('Multiplier must be a positive number'); return; }
     if (!Number.isFinite(t) || t < 1)  { toast.error('Referral threshold must be ≥ 1'); return; }
     if (!Number.isFinite(r) || r < 0)  { toast.error('Reward amount must be ≥ 0'); return; }
     if (!Number.isFinite(q) || q < 0)  { toast.error('Qualify earnings must be ≥ 0'); return; }
+    if (!Number.isFinite(pe) || pe < 0) { toast.error('Protect-earnings must be ≥ 0'); return; }
 
     setSaving(true);
     try {
@@ -56,10 +64,12 @@ export default function AdminSettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          earningsMultiplier:      m,
-          referralThreshold:       t,
-          referralReward:          r,
-          referralQualifyEarnings: q,
+          earningsMultiplier:          m,
+          referralThreshold:           t,
+          referralReward:              r,
+          referralQualifyEarnings:     q,
+          proxyReclaimEnabled:         reclaimEnabled,
+          proxyReclaimProtectEarnings: pe,
         }),
       });
       toast.success('Settings saved');
@@ -148,6 +158,48 @@ export default function AdminSettingsPage() {
                 disabled={isLoading}
               />
             </div>
+          </div>
+        </Card>
+
+        {/* Idle-proxy reclamation */}
+        <Card className="p-5 space-y-4">
+          <h3 className="font-semibold text-sm">Idle-proxy reclamation</h3>
+          <p className="text-xs text-muted-foreground">
+            Automatically free up proxy emails held by inactive creators so you can reassign them.
+            A creator who hasn't logged in is warned by email after <strong>3 days</strong>, and if
+            still idle 48 hours later (<strong>day 5</strong>) their proxy is detached and they're
+            logged out — their data is kept so you can reconnect them later. Creators who have earned
+            more than the protect amount below are never auto-reclaimed.
+          </p>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={reclaimEnabled}
+              onChange={(e) => setReclaimEnabled(e.target.checked)}
+              disabled={isLoading}
+              className="h-4 w-4 rounded border-input"
+            />
+            <span className="text-sm">
+              Enable automatic reclamation
+              <span className="text-muted-foreground"> — leave off to only reclaim manually from the Activity page.</span>
+            </span>
+          </label>
+
+          <div className="space-y-1.5 max-w-xs">
+            <Label>Protect creators who earned more than ($)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={protectEarnings}
+              onChange={(e) => setProtectEarnings(e.target.value)}
+              disabled={isLoading}
+            />
+            <p className="text-xs text-muted-foreground">
+              0 means anyone who has earned anything at all is protected. Ghosts ($0 earned) are always eligible.
+            </p>
           </div>
         </Card>
 

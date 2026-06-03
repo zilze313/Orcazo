@@ -42,6 +42,7 @@ const NAV = [
   { href: '/admin/allowlist',        label: 'Allowlist',          icon: ShieldCheck,     permission: 'creators' },
   { href: '/admin/managed-emails',   label: 'Managed emails',     icon: AtSign,          permission: 'managed-emails' },
   { href: '/admin/employees',        label: 'Employees',          icon: Users,           permission: 'creators' },
+  { href: '/admin/creator-activity', label: 'Creator Activity',   icon: Activity,        permission: 'creators' },
   { href: '/admin/submissions',      label: 'Submissions',        icon: FileText,        permission: 'campaigns' },
   { href: '/admin/campaigns',        label: 'Campaigns',          icon: LayoutGrid,      permission: 'campaigns' },
   { href: '/admin/campaign-rules',   label: 'Campaign Rules',     icon: BookOpen,        permission: 'campaigns' },

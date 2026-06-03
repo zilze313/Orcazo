@@ -271,6 +271,39 @@ export function unreadChatMessageEmail(opts: {
   };
 }
 
+export function accountInactivityWarningEmail(opts: {
+  displayName?: string | null;
+  loginUrl: string;
+}): { subject: string; html: string } {
+  const { displayName, loginUrl } = opts;
+  return {
+    subject: 'Action needed: log in to keep your Orcazo account active',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 12px;">${displayName ? 'Hi ' + escapeHtml(displayName) + ',' : 'Hi,'}</h1>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+          We noticed you haven't logged in for a few days. To keep spots open for active creators, accounts that stay
+          inactive are paused and their access is released.
+        </p>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+          <strong>Please log in within the next 48 hours</strong> to keep your account active. If you don't, your
+          account will be paused — you'd need to contact us to get it reactivated.
+        </p>
+        <p style="text-align:center; margin: 24px 0;">
+          <a href="${loginUrl}" style="display:inline-block; padding: 10px 18px; background: #111; color: #fff; text-decoration:none; border-radius: 6px; font-size: 14px; font-weight: 600;">Log in now</a>
+        </p>
+        <p style="font-size: 13px; color: #666; line-height: 1.6; margin: 16px 0 0;">
+          Already planning to come back? Just log in once and you're all set — this is only to free up unused accounts.
+        </p>
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
+      </div>
+    `.trim(),
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
