@@ -6,3 +6,7 @@ node_modules
 .DS_Store
 .vercel
 next-env.d.ts
+
+# scratch/debug scripts
+_*.mjs
+_*.txt

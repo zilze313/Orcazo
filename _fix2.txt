@@ -1,4 +1,0 @@
-alter: ok
-has_column_now: true
-full_findMany_rows: 30
-DONE
