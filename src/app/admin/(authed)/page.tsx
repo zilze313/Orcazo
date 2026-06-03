@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
   Users, ShieldCheck, FileText, Activity, Sparkles, AlertTriangle, Clock, DollarSign,
-  TrendingUp, UserPlus, Wallet,
+  TrendingUp, UserPlus, Wallet, Mailbox, ArrowRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -12,6 +13,7 @@ import {
 } from 'recharts';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api-client';
 import { formatRelative } from '@/lib/utils';
@@ -49,6 +51,11 @@ interface StatsResp {
     signups: ChartPoint[];
     payouts: ChartPoint[];
   };
+  proxyPool: {
+    owned: number;
+    connected: number;
+    free: number;
+  };
 }
 
 export default function AdminDashboardPage() {
@@ -76,6 +83,51 @@ export default function AdminDashboardPage() {
           <StatCard icon={Activity}       label="Submissions (7d)"  value={stats.data?.submissions7d}  loading={stats.isLoading} tone="muted" />
           <StatCard icon={AlertTriangle}  label="Failed (7d)"       value={stats.data?.submissionsFailed7d} loading={stats.isLoading} tone={(stats.data?.submissionsFailed7d ?? 0) > 0 ? 'warning' : 'muted'} />
         </div>
+
+        {/* Proxy inventory — links to the full Creator Activity page */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Mailbox className="h-4 w-4" />
+              Proxy email inventory
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/admin/creator-activity">
+                Creator activity <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+          {stats.isLoading ? (
+            <div className="flex gap-6">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-8">
+              <div>
+                <div className="text-2xl font-semibold tabular-nums">{stats.data?.proxyPool.owned ?? 0}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Owned</div>
+              </div>
+              <div>
+                <div className="text-2xl font-semibold tabular-nums text-blue-600 dark:text-blue-400">{stats.data?.proxyPool.connected ?? 0}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Connected</div>
+              </div>
+              <div>
+                <div className={`text-2xl font-semibold tabular-nums ${(stats.data?.proxyPool.free ?? 0) === 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {stats.data?.proxyPool.free ?? 0}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Free to assign</div>
+              </div>
+            </div>
+          )}
+          {!stats.isLoading && (stats.data?.proxyPool.free ?? 0) === 0 && (
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-3 flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" />
+              No free proxies — reclaim idle ones from Creator Activity to approve more creators.
+            </p>
+          )}
+        </Card>
 
         {/* Earnings breakdown */}
         <Card className="p-5">

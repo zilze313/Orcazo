@@ -47,8 +47,26 @@ export const GET = withAdmin(async ({ req }) => {
     }),
   ]);
 
+  // Cross-reference the allowlist so we can flag APPROVED creators whose proxy
+  // has since been reclaimed (proxyEmail null) or whose allowlist row was deleted.
+  // Those creators can no longer log in, so the UI should show "Removed" rather
+  // than a stale "Approved".
+  const approvedEmails = entries.filter((e) => e.status === 'APPROVED').map((e) => e.publicEmail);
+  const allowRows = approvedEmails.length
+    ? await db.allowlist.findMany({
+        where: { email: { in: approvedEmails } },
+        select: { email: true, proxyEmail: true },
+      })
+    : [];
+  const proxyByEmail = new Map(allowRows.map((r) => [r.email, r.proxyEmail]));
+
   return ok({
-    entries,
+    entries: entries.map((e) => {
+      // removed = approved at some point, but no live allowlist row with a proxy now
+      const removed =
+        e.status === 'APPROVED' && !proxyByEmail.get(e.publicEmail);
+      return { ...e, removed };
+    }),
     pagination: {
       page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)),
     },

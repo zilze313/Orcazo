@@ -41,6 +41,8 @@ export const GET = withAdmin(async () => {
     submissionsMonth,
     signupsMonth,
     payoutsMonth,
+    proxyOwned,
+    proxyConnected,
   ] = await Promise.all([
     db.employee.count(),
     db.allowlist.count(),
@@ -73,6 +75,8 @@ export const GET = withAdmin(async () => {
       where: { createdAt: { gte: monthAgo } },
       select: { createdAt: true, status: true, amountPaid: true, penalty: true, paidAt: true },
     }),
+    db.managedEmail.count(),
+    db.allowlist.count({ where: { proxyEmail: { not: null } } }),
   ]);
 
   const sumDecimal = (v: unknown) => {
@@ -145,6 +149,11 @@ export const GET = withAdmin(async () => {
       submissions: submissionsChart,
       signups:     signupsChart,
       payouts:     payoutsChart,
+    },
+    proxyPool: {
+      owned:     proxyOwned,
+      connected: proxyConnected,
+      free:      Math.max(0, proxyOwned - proxyConnected),
     },
   });
 });

@@ -41,12 +41,30 @@ export const GET = withEmployee(async ({ session }) => {
 
   // Hide social accounts that pre-existed when this creator's proxy was connected,
   // unless the admin has enabled full-history mode for them.
-  if (!employee?.showFullHistory && employee?.baselineSocialIds) {
-    try {
-      const baselineSet = new Set<string>(JSON.parse(employee.baselineSocialIds));
-      socials = socials.filter((s: { publicId: string }) => !baselineSet.has(s.publicId));
-    } catch {
-      // malformed JSON — skip filter
+  if (!employee?.showFullHistory) {
+    let baselineSet: Set<string> | null = null;
+
+    if (employee?.baselineSocialIds) {
+      try {
+        baselineSet = new Set<string>(JSON.parse(employee.baselineSocialIds));
+      } catch {
+        baselineSet = null; // malformed JSON — skip filter
+      }
+    } else {
+      // No baseline captured yet (e.g. the creator opened this page before ever
+      // loading the dashboard). Snapshot the accounts that already exist on the
+      // connected proxy NOW, so those pre-existing accounts stay hidden and only
+      // accounts the creator adds later are shown. Fire-and-forget write.
+      const ids = socials.map((s: { publicId: string }) => s.publicId);
+      baselineSet = new Set<string>(ids);
+      db.employee.update({
+        where: { id: session.employeeId },
+        data: { baselineSocialIds: JSON.stringify(ids) },
+      }).catch(() => {});
+    }
+
+    if (baselineSet) {
+      socials = socials.filter((s: { publicId: string }) => !baselineSet!.has(s.publicId));
     }
   }
 

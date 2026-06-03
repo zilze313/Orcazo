@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tag, Plus, Trash2, Loader2, Users, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Tag, Plus, Trash2, Loader2, Users, CheckCircle2, XCircle, Clock, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -36,11 +36,18 @@ interface SignupEntry {
   fullName: string;
   publicEmail: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  removed?: boolean;
   createdAt: string;
 }
 interface SignupsResp { entries: SignupEntry[] }
 
-function SignupStatusBadge({ status }: { status: SignupEntry['status'] }) {
+function SignupStatusBadge({ status, removed }: { status: SignupEntry['status']; removed?: boolean }) {
+  // An approved creator whose proxy was reclaimed / allowlist entry deleted.
+  if (removed) return (
+    <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+      <Unplug className="h-3 w-3" /> Removed
+    </span>
+  );
   if (status === 'APPROVED') return (
     <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
       <CheckCircle2 className="h-3 w-3" /> Approved
@@ -107,7 +114,7 @@ function SignupsModal({
                     <div className="text-xs text-muted-foreground truncate">{s.publicEmail}</div>
                   </div>
                   <div className="flex-shrink-0 flex flex-col items-end gap-0.5">
-                    <SignupStatusBadge status={s.status} />
+                    <SignupStatusBadge status={s.status} removed={s.removed} />
                     <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {formatRelative(s.createdAt)}
                     </span>

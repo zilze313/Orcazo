@@ -75,6 +75,7 @@ export const GET = withEmployee(async ({ req, session }) => {
         baselineWaitingPayment: true,
         baselineWaitingReview:  true,
         baselineCapturedAt:     true,
+        baselineSocialIds:      true,
         showFullHistory:        true,
       },
     }),
@@ -102,7 +103,10 @@ export const GET = withEmployee(async ({ req, session }) => {
             baselineWaitingPayment: new Prisma.Decimal(String(num(resp.totalWaitingPayment))),
             baselineWaitingReview:  new Prisma.Decimal(String(num(resp.totalWaitingReview))),
             baselineCapturedAt:     new Date(),
-            baselineSocialIds:      JSON.stringify(ids),
+            // Preserve a baseline already captured by the socials route (don't
+            // overwrite it with a later snapshot that could include accounts the
+            // creator added in the meantime).
+            baselineSocialIds:      employee.baselineSocialIds ?? JSON.stringify(ids),
           },
         });
       })
