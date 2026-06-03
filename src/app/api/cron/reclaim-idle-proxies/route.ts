@@ -6,9 +6,8 @@
 //   • warned >= 48h ago and still idle       → detach the proxy (free it) + force logout
 //   • logged back in / now protected         → clear the stale warning
 //
-// Gated by the proxyReclaimEnabled setting (default off). Auth via bearer token.
-// Point an external scheduler (cron-job.org etc.) at this once per day:
-//   Authorization: Bearer <CRON_SECRET below>
+// Gated by the proxyReclaimEnabled setting (default off). Invoked by Vercel Cron
+// once per day (see vercel.json).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
@@ -21,10 +20,16 @@ import { log } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Hardcoded because Vercel env vars can't be edited (lost access). Rotate by
-// generating a new random hex string and updating both here and your scheduler.
-const CRON_SECRET = '7732fa4e296913a0558db5c37f4a589716e8fbe50eb5391f0b399430165f9fe6';
 const MAX_PER_RUN = 100;
+
+// Authorize Vercel Cron requests (they carry a `vercel-cron` user-agent), or a
+// bearer token if a CRON_SECRET env var is ever set (for manual triggering).
+function isAuthorized(req: NextRequest): boolean {
+  const ua = req.headers.get('user-agent') ?? '';
+  if (ua.includes('vercel-cron')) return true;
+  const secret = process.env.CRON_SECRET ?? '';
+  return secret.length > 0 && req.headers.get('authorization') === `Bearer ${secret}`;
+}
 
 function decNum(v: unknown): number {
   if (v == null) return 0;
@@ -33,8 +38,7 @@ function decNum(v: unknown): number {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get('authorization') ?? '';
-  if (auth !== `Bearer ${CRON_SECRET}`) return fail(401, 'Unauthorized', 'UNAUTHENTICATED');
+  if (!isAuthorized(req)) return fail(401, 'Unauthorized', 'UNAUTHENTICATED');
 
   const config = await getProxyReclaimConfig();
   if (!config.enabled) {

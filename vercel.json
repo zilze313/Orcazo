@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/notify-unread-chat",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/reclaim-idle-proxies",
+      "schedule": "30 8 * * *"
+    }
+  ]
+}

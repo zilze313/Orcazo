@@ -1,13 +1,8 @@
 // GET /api/cron/notify-unread-chat
 //
 // Sends an email to the creator for every admin chat message that is still
-// unread after its 5-minute grace window. Idempotent — we stamp
-// notifyEmailSentAt so the same message is never emailed twice.
-//
-// Auth: Bearer token. Configure your external scheduler (cron-job.org,
-// uptimerobot, etc.) to send:
-//   Authorization: Bearer <CRON_SECRET below>
-// Suggested schedule: every 1 minute.
+// unread after its grace window. Idempotent — we stamp notifyEmailSentAt so the
+// same message is never emailed twice. Invoked by Vercel Cron (see vercel.json).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
@@ -18,17 +13,19 @@ import { log } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Hardcoded because Vercel env vars can't be edited (lost access). Rotate by
-// generating a new random hex string and updating both here and your scheduler.
-const CRON_SECRET = 'cf82642f18aa6275b99c1744a2268a8a8022b9de04179a394148687117dc7bca';
 const MAX_PER_RUN = 50; // safety cap so a stuck job can't fan-out to thousands
 
+// Authorize Vercel Cron requests (they carry a `vercel-cron` user-agent), or a
+// bearer token if a CRON_SECRET env var is ever set (for manual triggering).
+function isAuthorized(req: NextRequest): boolean {
+  const ua = req.headers.get('user-agent') ?? '';
+  if (ua.includes('vercel-cron')) return true;
+  const secret = process.env.CRON_SECRET ?? '';
+  return secret.length > 0 && req.headers.get('authorization') === `Bearer ${secret}`;
+}
+
 export async function GET(req: NextRequest) {
-  // Auth: require a matching bearer token.
-  const auth = req.headers.get('authorization') ?? '';
-  if (auth !== `Bearer ${CRON_SECRET}`) {
-    return fail(401, 'Unauthorized', 'UNAUTHENTICATED');
-  }
+  if (!isAuthorized(req)) return fail(401, 'Unauthorized', 'UNAUTHENTICATED');
 
   const now = new Date();
 
