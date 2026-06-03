@@ -4,10 +4,10 @@
 // unread after its 5-minute grace window. Idempotent — we stamp
 // notifyEmailSentAt so the same message is never emailed twice.
 //
-// Auth: Bearer token. In production, Vercel cron automatically attaches
-//   Authorization: Bearer ${CRON_SECRET}
-// when CRON_SECRET is set in the environment. Locally you can hit this manually
-// with the same header.
+// Auth: Bearer token. Configure your external scheduler (cron-job.org,
+// uptimerobot, etc.) to send:
+//   Authorization: Bearer <CRON_SECRET below>
+// Suggested schedule: every 1 minute.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
@@ -18,14 +18,15 @@ import { log } from '@/lib/logger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const CRON_SECRET = process.env.CRON_SECRET ?? '';
+// Hardcoded because Vercel env vars can't be edited (lost access). Rotate by
+// generating a new random hex string and updating both here and your scheduler.
+const CRON_SECRET = 'cf82642f18aa6275b99c1744a2268a8a8022b9de04179a394148687117dc7bca';
 const MAX_PER_RUN = 50; // safety cap so a stuck job can't fan-out to thousands
 
 export async function GET(req: NextRequest) {
-  // Auth: require a matching bearer token. If no secret is configured at all,
-  // refuse to run rather than silently expose the endpoint.
+  // Auth: require a matching bearer token.
   const auth = req.headers.get('authorization') ?? '';
-  if (!CRON_SECRET || auth !== `Bearer ${CRON_SECRET}`) {
+  if (auth !== `Bearer ${CRON_SECRET}`) {
     return fail(401, 'Unauthorized', 'UNAUTHENTICATED');
   }
 
