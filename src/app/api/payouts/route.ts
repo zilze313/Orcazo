@@ -62,7 +62,6 @@ export const GET = withEmployee(async ({ session }) => {
         showFullHistory:        true,
       },
     }),
-    // Payout history from our own DB — no upstream fetch needed
     db.payoutRequest.findMany({
       where: { employeeId: session.employeeId },
       orderBy: { createdAt: 'desc' },
@@ -79,9 +78,6 @@ export const GET = withEmployee(async ({ session }) => {
         rejectedAt: true,
       },
     }),
-    // Sums for PAID requests:
-    // - amountPaid     → what we actually sent the creator (shown as "Total paid out")
-    // - amountAtRequest → full amount deducted from balance (penalties are gone permanently)
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
       _sum: { amountPaid: true, amountAtRequest: true },
@@ -102,43 +98,42 @@ export const GET = withEmployee(async ({ session }) => {
     }).catch(() => {});
   }
 
-  // ── Baseline-adjusted balance ─────────────────────────────────────────────
-  // Available balance pools both upstream.totalWaitingPayment (approved on AffiliateNetwork)
-  // and upstream.totalPaid (paid by AffiliateNetwork to admin, still owed to creator),
-  // then deducts the full amountAtRequest of every PAID DB request (penalty stays gone).
-  const showFull = employee?.showFullHistory ?? false;
+  // ── Baseline-adjusted REAL figures (unscaled) ─────────────────────────────
+  // Available balance is drawn ONLY from money AffiliateNetwork has actually PAID
+  // us (settled funds the admin holds) — NOT from approved-but-unpaid amounts.
+  //   available = (upstream.totalPaid − baseline) × M  −  amountAtRequest of PAID payouts
+  // We deduct the FULL amountAtRequest, so any penalty is permanently consumed.
+  const showFull    = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
-  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
-  const bPaid    = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid)           : decNum(employee?.baselineTotalPaid));
+  const bPayment    = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
+  const bReview     = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
+  const bPaid       = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid)           : decNum(employee?.baselineTotalPaid));
 
-  const grossWaiting   = (
-    Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) +
-    Math.max(0, num(dashResp?.totalPaid)           - bPaid)
-  ) * M;
-  const totalPaidByUs  = decNum(paidAggregate._sum.amountPaid);      // for "Total paid out" stat
-  const totalDeducted  = decNum(paidAggregate._sum.amountAtRequest);  // for balance deduction
-  const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
+  const realReview  = Math.max(0, num(dashResp?.totalWaitingReview)  - bReview);
+  const realPayment = Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment);
+  const realPaid    = Math.max(0, num(dashResp?.totalPaid)           - bPaid);
 
-  // Cache adjusted waiting-payment
+  const totalPaidByUs  = decNum(paidAggregate._sum.amountPaid);     // paid to creator (for "Total paid out")
+  const totalDeducted  = decNum(paidAggregate._sum.amountAtRequest); // consumed from balance
+  const waitingPayment = Math.max(0, realPaid * M - totalDeducted);  // = available to withdraw
+
+  // Cache the unscaled real figures for admin dashboards.
   if (dashResp != null) {
-    const bReview = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingReview) : decNum(employee?.baselineWaitingReview));
-    const waitingReview = Math.max(0, num(dashResp.totalWaitingReview) - bReview) * M;
     db.employee.update({
       where: { id: session.employeeId },
       data: {
-        cachedWaitingPayment: new Prisma.Decimal(waitingPayment.toFixed(2)),
-        cachedWaitingReview:  new Prisma.Decimal(waitingReview.toFixed(2)),
+        cachedWaitingPayment: new Prisma.Decimal(realPayment.toFixed(2)),
+        cachedWaitingReview:  new Prisma.Decimal(realReview.toFixed(2)),
+        cachedPaid:           new Prisma.Decimal(realPaid.toFixed(2)),
         cachedSummaryAt: new Date(),
       },
     }).catch(() => {});
   }
 
-  // Pre-fill: surface only the saved details, never amounts/status from old requests
   const savedDetails = lastReq
     ? { method: lastReq.method, details: lastReq.details }
     : null;
 
-  // Pending request — block submitting another while one is open
   const pending = payoutHistory.find((p) =>
     p.status === 'REQUESTED' || p.status === 'IN_PROGRESS'
   );
@@ -191,16 +186,14 @@ export const POST = withEmployee(async ({ req, session }) => {
     getEarningsMultiplier(),
   ]);
 
-  const showFull = employee?.showFullHistory ?? false;
+  // Available to withdraw = (settled upstream paid − baseline) × M − already withdrawn.
+  // Only money AffiliateNetwork has actually paid us counts (matches GET).
+  const showFull    = employee?.showFullHistory ?? false;
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
-  const bPayment = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalWaitingPayment) : parseFloat(String(employee?.baselineWaitingPayment ?? 0)) || 0);
-  const bPaid    = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid)           : parseFloat(String(employee?.baselineTotalPaid      ?? 0)) || 0);
-  const grossWaiting  = (
-    Math.max(0, num(dashResp?.totalWaitingPayment) - bPayment) +
-    Math.max(0, num(dashResp?.totalPaid)           - bPaid)
-  ) * M;
+  const bPaid       = showFull ? 0 : (isFirstLoad ? num(dashResp?.totalPaid) : parseFloat(String(employee?.baselineTotalPaid ?? 0)) || 0);
+  const realPaid    = Math.max(0, num(dashResp?.totalPaid) - bPaid);
   const totalDeducted = parseFloat(String(paidAggregate._sum.amountAtRequest ?? 0)) || 0;
-  const waitingPayment = Math.max(0, grossWaiting - totalDeducted);
+  const waitingPayment = Math.max(0, realPaid * M - totalDeducted);
 
   if (waitingPayment < MIN_PAYOUT_USD) {
     return fail(400, `You need at least $${MIN_PAYOUT_USD} available to request a payout.`, 'BELOW_MIN');

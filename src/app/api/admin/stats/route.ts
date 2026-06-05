@@ -58,7 +58,7 @@ export const GET = withAdmin(async () => {
     }),
     db.employee.aggregate({
       _sum: {
-        cachedBalance:        true,
+        cachedPaid:           true,
         cachedWaitingPayment: true,
         cachedWaitingReview:  true,
       },
@@ -84,8 +84,9 @@ export const GET = withAdmin(async () => {
     const n = parseFloat(String(v));
     return Number.isFinite(n) ? n : 0;
   };
+  // Real (unscaled) money the creators generated since connect: settled + approved + pending.
   const totalEarnings =
-    sumDecimal(earningsAggregate._sum.cachedBalance) +
+    sumDecimal(earningsAggregate._sum.cachedPaid) +
     sumDecimal(earningsAggregate._sum.cachedWaitingPayment) +
     sumDecimal(earningsAggregate._sum.cachedWaitingReview);
 
@@ -141,7 +142,8 @@ export const GET = withAdmin(async () => {
     recentSubmissions,
     totalEarnings: Math.round(totalEarnings * 100) / 100,
     totalEarningsBreakdown: {
-      paid:            Math.round(sumDecimal(earningsAggregate._sum.cachedBalance) * 100) / 100,
+      // "Paid" = what AffiliateNetwork has settled to us for creators' post-connect work (unscaled).
+      paid:            Math.round(sumDecimal(earningsAggregate._sum.cachedPaid) * 100) / 100,
       awaitingPayment: Math.round(sumDecimal(earningsAggregate._sum.cachedWaitingPayment) * 100) / 100,
       awaitingReview:  Math.round(sumDecimal(earningsAggregate._sum.cachedWaitingReview) * 100) / 100,
     },

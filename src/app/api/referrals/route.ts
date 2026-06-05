@@ -63,32 +63,20 @@ export const GET = withEmployee(async ({ session }) => {
   const employees = emails.length
     ? await db.employee.findMany({
         where:  { email: { in: emails } },
-        select: { id: true, email: true, cachedWaitingPayment: true, cachedWaitingReview: true },
+        select: { id: true, email: true, cachedPaid: true, cachedWaitingPayment: true, cachedWaitingReview: true },
       })
     : [];
   const employeeByEmail = new Map(employees.map((e) => [e.email, e]));
 
-  // For each referred Employee, aggregate the sum of amountPaid on PAID payout
-  // requests — that's the "already paid out" half of their lifetime earnings.
-  const employeeIds = employees.map((e) => e.id);
-  const paidAgg = employeeIds.length
-    ? await db.payoutRequest.groupBy({
-        by: ['employeeId'],
-        where: { employeeId: { in: employeeIds }, status: 'PAID' },
-        _sum: { amountPaid: true },
-      })
-    : [];
-  const paidByEmployeeId = new Map(
-    paidAgg.map((row) => [row.employeeId, decNum(row._sum.amountPaid)]),
-  );
-
-  // Compute per-referral earnings + qualified flag.
+  // Compute per-referral earnings + qualified flag. "Earnings" = the real money
+  // the referred creator has generated since connecting (settled + approved +
+  // pending), unscaled. Signups without an Employee yet count as $0.
   const referrals = signups.map((s) => {
     const emp = employeeByEmail.get(s.publicEmail);
     const earnings = emp
-      ? decNum(emp.cachedWaitingPayment) +
-        decNum(emp.cachedWaitingReview) +
-        (paidByEmployeeId.get(emp.id) ?? 0)
+      ? decNum(emp.cachedPaid) +
+        decNum(emp.cachedWaitingPayment) +
+        decNum(emp.cachedWaitingReview)
       : 0;
     return {
       id:        s.id,

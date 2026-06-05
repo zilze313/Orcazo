@@ -40,25 +40,15 @@ export const POST = withEmployee(async ({ session }) => {
     const emails = signups.map((s) => s.publicEmail);
     const employees = await db.employee.findMany({
       where: { email: { in: emails } },
-      select: { id: true, cachedWaitingPayment: true, cachedWaitingReview: true },
+      select: { id: true, cachedPaid: true, cachedWaitingPayment: true, cachedWaitingReview: true },
     });
 
-    const paidAgg = employees.length
-      ? await db.payoutRequest.groupBy({
-          by: ['employeeId'],
-          where: { employeeId: { in: employees.map((e) => e.id) }, status: 'PAID' },
-          _sum: { amountPaid: true },
-        })
-      : [];
-    const paidByEmployeeId = new Map(
-      paidAgg.map((r) => [r.employeeId, decNum(r._sum.amountPaid)]),
-    );
-
     for (const e of employees) {
+      // Real money generated since connect (settled + approved + pending), unscaled.
       const earnings =
+        decNum(e.cachedPaid) +
         decNum(e.cachedWaitingPayment) +
-        decNum(e.cachedWaitingReview) +
-        (paidByEmployeeId.get(e.id) ?? 0);
+        decNum(e.cachedWaitingReview);
       if (earnings >= qualifyEarnings) qualifiedCount++;
     }
   }

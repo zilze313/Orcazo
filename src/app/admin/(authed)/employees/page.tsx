@@ -29,7 +29,7 @@ interface Employee {
   lastName: string | null;
   affiliateNetworkPublicId: string | null;
   bioVerificationCode: string | null;
-  cachedBalance: string | null;
+  cachedPaid: string | null;
   cachedWaitingPayment: string | null;
   cachedWaitingReview: string | null;
   showFullHistory: boolean;
@@ -54,7 +54,7 @@ type SortField =
   | "createdAt"
   | "firstName"
   | "email"
-  | "cachedBalance"
+  | "cachedPaid"
   | "cachedWaitingPayment";
 
 const COLUMNS: Array<{
@@ -66,7 +66,7 @@ const COLUMNS: Array<{
   { field: "firstName", label: "Name" },
   { field: null, label: "Social" },
   { field: null, label: "Bio code" },
-  { field: "cachedBalance", label: "Paid", align: "right" },
+  { field: "cachedPaid", label: "Paid", align: "right" },
   { field: "cachedWaitingPayment", label: "Awaiting payment", align: "right" },
   { field: null, label: "Awaiting review", align: "right" },
   { field: null, label: "Full history", align: "center" },
@@ -77,8 +77,9 @@ const COLUMNS: Array<{
 
 const COLUMN_TOOLTIPS: Record<string, string> = {
   "Bio code": "The verification code the creator adds to their social media bio",
-  "Awaiting payment": "Earnings approved but not yet paid out",
-  "Awaiting review": "Earnings pending review by the network",
+  "Paid": "Real money AffiliateNetwork has settled to you for this creator's work since they connected (your commission cut not applied)",
+  "Awaiting payment": "Approved on AffiliateNetwork, awaiting settlement to you (real amount, no multiplier)",
+  "Awaiting review": "Pending review by the network (real amount, no multiplier)",
   "Full history": "Toggle to show pre-connection earnings or keep baseline isolation",
 };
 
@@ -310,7 +311,7 @@ export default function AdminEmployeesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
-                      {e.cachedBalance ? `$${e.cachedBalance}` : "—"}
+                      {e.cachedPaid ? `$${e.cachedPaid}` : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
                       {e.cachedWaitingPayment ? `$${e.cachedWaitingPayment}` : "—"}

@@ -97,10 +97,16 @@ model Employee {
   lastName                 String?
   bioVerificationCode      String?
   cachedBalance            Decimal?            @db.Decimal(12, 2)
-  /// Most recent dashboard summary (cached for the payouts gate so we know
-  /// whether the creator has ≥ $10 awaiting payment without an extra upstream call).
+  /// Most recent dashboard summary, cached so admin views + payout gates don't
+  /// need a live upstream call. These store the REAL (un-multiplied),
+  /// baseline-adjusted figures — i.e. only money made after the proxy was
+  /// connected. The creator-facing multiplier is applied at response time, not here.
+  ///   cachedWaitingPayment = upstream waitingPayment − baseline   (approved, in transit)
+  ///   cachedWaitingReview  = upstream waitingReview  − baseline   (pending approval)
+  ///   cachedPaid           = upstream totalPaid      − baseline   (settled to admin)
   cachedWaitingPayment     Decimal?            @db.Decimal(12, 2)
   cachedWaitingReview      Decimal?            @db.Decimal(12, 2)
+  cachedPaid               Decimal?            @db.Decimal(12, 2)
   cachedSummaryAt          DateTime?
   /// Raw upstream totals captured the first time this creator loads their
   /// dashboard.  Used to zero-out pre-connection history so creators only see

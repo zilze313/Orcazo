@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   LineChart, ExternalLink, DollarSign, Clock, CheckCircle2,
-  Film, Hourglass, Eye, MessageSquare,
+  Film, Eye, MessageSquare, Wallet,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -52,6 +52,7 @@ interface DashResp {
     totalCount: number;
     totalWaitingReview: number;
     totalWaitingPayment: number;
+    availableToWithdraw: number;
     totalPaid: number;
   };
   sort: 'earnings' | 'submitted' | 'posted' | 'views';
@@ -143,9 +144,9 @@ export default function DashboardPage() {
             tone="muted"
           />
           <SummaryCard
-            icon={Hourglass}
-            label="Waiting payment"
-            value={summary ? formatMoney(summary.totalWaitingPayment) : null}
+            icon={Wallet}
+            label="Available to withdraw"
+            value={summary ? formatMoney(summary.availableToWithdraw) : null}
             loading={query.isLoading}
             tone="warning"
           />

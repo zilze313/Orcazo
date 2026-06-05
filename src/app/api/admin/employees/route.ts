@@ -11,7 +11,7 @@ import { withAdmin, ok } from '@/lib/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SORT_FIELDS = ['createdAt', 'firstName', 'email', 'cachedBalance', 'cachedWaitingPayment'] as const;
+const SORT_FIELDS = ['createdAt', 'firstName', 'email', 'cachedPaid', 'cachedWaitingPayment'] as const;
 type SortField = typeof SORT_FIELDS[number];
 
 const querySchema = z.object({
@@ -30,6 +30,7 @@ export const GET = withAdmin(async ({ req }) => {
   }
   const { search, sort, order, page, pageSize } = parsed.data;
 
+  // When searching, also look in signup-form social handles (JSON field).
   let socialMatchEmails: string[] = [];
   if (search) {
     const socialRows = await db.creatorSignupRequest.findMany({
@@ -64,7 +65,7 @@ export const GET = withAdmin(async ({ req }) => {
         lastName: true,
         affiliateNetworkPublicId: true,
         bioVerificationCode: true,
-        cachedBalance: true,
+        cachedPaid: true,
         cachedWaitingPayment: true,
         cachedWaitingReview: true,
         showFullHistory: true,
@@ -89,12 +90,13 @@ export const GET = withAdmin(async ({ req }) => {
   return ok({
     employees: employees.map((e) => {
       const accs = signupMap.get(e.email);
+      // socialAccounts is Json: [{ platform, handle }, ...]
       const firstSocial = Array.isArray(accs) && accs.length > 0
         ? (accs[0] as { platform: string; handle: string })
         : null;
       return {
         ...e,
-        cachedBalance:        e.cachedBalance?.toString()        ?? null,
+        cachedPaid:           e.cachedPaid?.toString()           ?? null,
         cachedWaitingPayment: e.cachedWaitingPayment?.toString() ?? null,
         cachedWaitingReview:  e.cachedWaitingReview?.toString()  ?? null,
         firstSocial,

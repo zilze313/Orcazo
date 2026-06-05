@@ -2,10 +2,10 @@
 // Wraps fetch-dash. Upstream returns the whole array; we paginate server-side
 // so the client doesn't render thousands of rows at once.
 //
-// 2× display rate: every monetary value (per-item base/cap/cpm/earnings AND
-// summary totalPaid/totalWaitingPayment/totalWaitingReview) is doubled before
+// Earnings multiplier: every creator-facing monetary value (per-item
+// base/cap/cpm/earnings) is scaled by the admin-configured multiplier before
 // being delivered to the browser. totalCount is a count, not money — pass it
-// through unmodified.
+// through unmodified. Admin-facing cached figures are stored UNSCALED.
 //
 // Baseline isolation: only show data from the day the creator's proxy email was
 // connected. Items are filtered by time_submitted >= proxyConnectedAt; aggregate
@@ -80,7 +80,7 @@ export const GET = withEmployee(async ({ req, session }) => {
       },
     }),
     getEarningsMultiplier(),
-    // Sums for PAID payout requests (used for both totalPaid and balance deduction)
+    // Sums for PAID payout requests (used for both totalPaid stat and balance deduction)
     db.payoutRequest.aggregate({
       where: { employeeId: session.employeeId, status: 'PAID' },
       _sum: { amountPaid: true, amountAtRequest: true },
@@ -144,7 +144,7 @@ export const GET = withEmployee(async ({ req, session }) => {
   const start = (page - 1) * pageSize;
   const rawItems = all.slice(start, start + pageSize);
 
-  // Double all per-item monetary fields before delivery (2× display rate)
+  // Apply earnings multiplier to all per-item monetary fields
   const items = rawItems.map((i) => ({
     ...i,
     base:     num(i.base)     * M,
@@ -153,29 +153,43 @@ export const GET = withEmployee(async ({ req, session }) => {
     earnings: num(i.earnings) * M,
   }));
 
-  // ── Baseline-adjusted summary totals ─────────────────────────────────────
-  // showFull → no subtraction (baseline = 0, show raw upstream * 2).
-  // First load → use current upstream as baseline so totals start at zero.
-  // "Waiting payment" rolls in upstream.totalPaid too: from the creator's
-  // perspective that's money AffiliateNetwork paid to the admin which still
-  // needs to flow to the creator — so it's awaiting payment from admin.
+  // ── Baseline-adjusted REAL figures (unscaled; only money earned after connect) ──
+  // We compute the true money the creator generated since their proxy was connected,
+  // WITHOUT the commission multiplier. We cache these so admin views show real numbers.
+  // The creator-facing multiplier (M) is applied only to what we send the browser.
   const isFirstLoad = !showFull && employee && !employee.baselineCapturedAt;
   const bPaid    = showFull ? 0 : (isFirstLoad ? num(resp.totalPaid)           : decNum(employee?.baselineTotalPaid));
   const bPayment = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingPayment) : decNum(employee?.baselineWaitingPayment));
   const bReview  = showFull ? 0 : (isFirstLoad ? num(resp.totalWaitingReview)  : decNum(employee?.baselineWaitingReview));
 
-  // Deduct full amountAtRequest (not just amountPaid) so penalties are gone from balance
-  const totalDeducted  = decNum(dbPaidAgg._sum.amountAtRequest);
-  const accruedPayment = (
-    Math.max(0, num(resp.totalWaitingPayment) - bPayment) +
-    Math.max(0, num(resp.totalPaid)           - bPaid)
-  ) * M;
+  const realReview  = Math.max(0, num(resp.totalWaitingReview)  - bReview);   // pending approval
+  const realPayment = Math.max(0, num(resp.totalWaitingPayment) - bPayment);  // approved, in transit to admin
+  const realPaid    = Math.max(0, num(resp.totalPaid)           - bPaid);     // settled to admin
+
+  // Cache the unscaled real figures for admin dashboards (fire-and-forget).
+  db.employee.update({
+    where: { id: session.employeeId },
+    data: {
+      cachedWaitingReview:  new Prisma.Decimal(realReview.toFixed(2)),
+      cachedWaitingPayment: new Prisma.Decimal(realPayment.toFixed(2)),
+      cachedPaid:           new Prisma.Decimal(realPaid.toFixed(2)),
+      cachedSummaryAt:      new Date(),
+    },
+  }).catch(() => {});
+
+  // Creator-facing figures (× multiplier). "Available to withdraw" is drawn ONLY
+  // from money AffiliateNetwork has actually PAID us (settled funds we hold), minus
+  // what the creator already withdrew. We deduct the FULL amountAtRequest of each
+  // PAID payout, so any penalty is permanently consumed for the creator.
+  const totalConsumed       = decNum(dbPaidAgg._sum.amountAtRequest);
+  const availableToWithdraw = Math.max(0, realPaid * M - totalConsumed);
 
   const summary = {
     totalCount:          total,
-    totalWaitingReview:  Math.max(0, num(resp.totalWaitingReview)  - bReview)  * M,
-    totalWaitingPayment: Math.max(0, accruedPayment - totalDeducted),
-    // totalPaid comes from our own DB — sum of amountPaid on PAID payout requests
+    totalWaitingReview:  realReview  * M,
+    totalWaitingPayment: realPayment * M,
+    availableToWithdraw,
+    // What the admin has actually paid the creator (our DB):
     totalPaid:           decNum(dbPaidAgg._sum.amountPaid),
   };
 

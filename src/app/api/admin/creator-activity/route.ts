@@ -42,7 +42,7 @@ export const GET = withAdmin(async () => {
           where: { email: { in: emails } },
           select: {
             id: true, email: true, firstName: true, lastName: true,
-            lastLoginAt: true, cachedWaitingPayment: true, cachedWaitingReview: true,
+            lastLoginAt: true, cachedPaid: true, cachedWaitingPayment: true, cachedWaitingReview: true,
           },
         })
       : [],
@@ -56,16 +56,6 @@ export const GET = withAdmin(async () => {
 
   const empByEmail    = new Map(employees.map((e) => [e.email, e]));
   const nameByEmail   = new Map(signups.map((s) => [s.publicEmail, s.fullName]));
-  const employeeIds   = employees.map((e) => e.id);
-
-  const paidAgg = employeeIds.length
-    ? await db.payoutRequest.groupBy({
-        by: ['employeeId'],
-        where: { employeeId: { in: employeeIds }, status: 'PAID' },
-        _sum: { amountPaid: true },
-      })
-    : [];
-  const paidByEmpId = new Map(paidAgg.map((r) => [r.employeeId, decNum(r._sum.amountPaid)]));
 
   const now = Date.now();
   let connected = 0;
@@ -73,8 +63,9 @@ export const GET = withAdmin(async () => {
 
   const rows = allowRows.map((r) => {
     const emp = empByEmail.get(r.email);
+    // Real money this creator generated since connect (settled + approved + pending), unscaled.
     const earnings = emp
-      ? decNum(emp.cachedWaitingPayment) + decNum(emp.cachedWaitingReview) + (paidByEmpId.get(emp.id) ?? 0)
+      ? decNum(emp.cachedPaid) + decNum(emp.cachedWaitingPayment) + decNum(emp.cachedWaitingReview)
       : 0;
     const hasProxy = !!r.proxyEmail;
     if (hasProxy) connected++;

@@ -133,7 +133,7 @@ export default function AdminDashboardPage() {
         <Card className="p-5">
           <div className="flex items-center gap-2 text-muted-foreground text-sm mb-3">
             <DollarSign className="h-4 w-4" />
-            Total creator earnings (all users, all time)
+            Total creator earnings — real amounts since connect (your commission cut not applied)
           </div>
           {stats.isLoading ? (
             <div className="flex gap-6">
@@ -154,7 +154,7 @@ export default function AdminDashboardPage() {
                 <div className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-400">
                   ${(stats.data?.totalEarningsBreakdown.paid ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">Paid out</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Settled to you</div>
               </div>
               <div>
                 <div className="text-lg font-semibold tabular-nums text-blue-600 dark:text-blue-400">
