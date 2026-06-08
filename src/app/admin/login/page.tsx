@@ -1,22 +1,26 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { toast } from 'sonner';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { Loader2, ShieldCheck } from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from '@/components/ui/card';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const schema = z.object({
-  email:    z.string().trim().toLowerCase().email('Enter a valid email'),
-  password: z.string().min(1, 'Password is required').max(200),
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+  password: z.string().min(1, "Password is required").max(200),
 });
 type Form = z.infer<typeof schema>;
 
@@ -24,26 +28,26 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const form = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: "", password: "" },
   });
 
   async function onSubmit(values: Form) {
     try {
-      const r = await fetch('/api/admin/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const r = await fetch("/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
       const data = await r.json();
       if (!r.ok) {
-        toast.error(data.error || 'Could not sign in');
+        toast.error(data.error || "Could not sign in");
         return;
       }
-      toast.success('Welcome back');
-      router.push('/admin');
+      toast.success("Welcome back");
+      router.push("/admin");
       router.refresh();
     } catch {
-      toast.error('Network error');
+      toast.error("Network error");
     }
   }
 
@@ -67,12 +71,14 @@ export default function AdminLoginPage() {
                 id="email"
                 type="email"
                 autoComplete="email"
-                placeholder="admin@startify.local"
+                placeholder="admin@orcazo.local"
                 disabled={form.formState.isSubmitting}
-                {...form.register('email')}
+                {...form.register("email")}
               />
               {form.formState.errors.email && (
-                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.email.message}
+                </p>
               )}
             </div>
             <div className="space-y-2">
@@ -82,14 +88,22 @@ export default function AdminLoginPage() {
                 type="password"
                 autoComplete="current-password"
                 disabled={form.formState.isSubmitting}
-                {...form.register('password')}
+                {...form.register("password")}
               />
               {form.formState.errors.password && (
-                <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.password.message}
+                </p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={form.formState.isSubmitting}
+            >
+              {form.formState.isSubmitting && (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              )}
               Sign in
             </Button>
           </form>

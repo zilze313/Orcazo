@@ -1,22 +1,22 @@
-// Cookie-based session for Startify.
+// Cookie-based session for Orcazo.
 // We store ONLY the sessionId in the cookie. The actual upstream token lives
 // server-side on the Employee row, so the client never sees it.
 
-import 'server-only';
-import { cookies } from 'next/headers';
-import { db } from './db';
-import { log } from './logger';
+import "server-only";
+import { cookies } from "next/headers";
+import { db } from "./db";
+import { log } from "./logger";
 
-const COOKIE_NAME = 'sf_session';
-const ADMIN_COOKIE_NAME = 'sf_admin';
+const COOKIE_NAME = "sf_session";
+const ADMIN_COOKIE_NAME = "sf_admin";
 const SESSION_TTL_DAYS = 30;
 const ADMIN_TTL_HOURS = 12;
 
 const cookieOpts = {
   httpOnly: true as const,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
-  path: '/',
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
 };
 
 // =============================================================
@@ -37,7 +37,9 @@ export async function createEmployeeSession(opts: {
   ipAddress?: string;
   userAgent?: string;
 }) {
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
+  );
   const session = await db.session.create({
     data: {
       employeeId: opts.employeeId,
@@ -46,7 +48,10 @@ export async function createEmployeeSession(opts: {
       userAgent: opts.userAgent?.slice(0, 256),
     },
   });
-  (await cookies()).set(COOKIE_NAME, session.id, { ...cookieOpts, expires: expiresAt });
+  (await cookies()).set(COOKIE_NAME, session.id, {
+    ...cookieOpts,
+    expires: expiresAt,
+  });
   return session;
 }
 
@@ -76,7 +81,7 @@ export async function destroyEmployeeSession() {
     try {
       await db.session.delete({ where: { id: sessionId } });
     } catch (err) {
-      log.warn('session.destroy_failed', { err: String(err) });
+      log.warn("session.destroy_failed", { err: String(err) });
     }
   }
   c.delete(COOKIE_NAME);
@@ -90,7 +95,7 @@ export interface AdminSession {
   sessionId: string;
   adminId: string;
   email: string;
-  role: 'SUPER_ADMIN' | 'ADMIN';
+  role: "SUPER_ADMIN" | "ADMIN";
   permissions: string[];
 }
 
@@ -99,7 +104,10 @@ export async function createAdminSession(adminId: string) {
   const session = await db.adminSession.create({
     data: { adminId, expiresAt },
   });
-  (await cookies()).set(ADMIN_COOKIE_NAME, session.id, { ...cookieOpts, expires: expiresAt });
+  (await cookies()).set(ADMIN_COOKIE_NAME, session.id, {
+    ...cookieOpts,
+    expires: expiresAt,
+  });
   return session;
 }
 
@@ -113,7 +121,10 @@ export async function getAdminSession(): Promise<AdminSession | null> {
   });
   if (!session || session.expiresAt < new Date()) return null;
 
-  const role = (session.admin as { role?: string }).role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN';
+  const role =
+    (session.admin as { role?: string }).role === "SUPER_ADMIN"
+      ? "SUPER_ADMIN"
+      : "ADMIN";
   const rawPerms = (session.admin as { permissions?: unknown }).permissions;
   const permissions = Array.isArray(rawPerms) ? (rawPerms as string[]) : [];
 
@@ -130,7 +141,9 @@ export async function destroyAdminSession() {
   const c = await cookies();
   const sessionId = c.get(ADMIN_COOKIE_NAME)?.value;
   if (sessionId) {
-    try { await db.adminSession.delete({ where: { id: sessionId } }); } catch {}
+    try {
+      await db.adminSession.delete({ where: { id: sessionId } });
+    } catch {}
   }
   c.delete(ADMIN_COOKIE_NAME);
 }
