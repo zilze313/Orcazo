@@ -4,9 +4,9 @@
 import 'server-only';
 import { log } from './logger';
 
-const PROJECT_URL = 'https://frdaptccanpnnqhfgewf.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyZGFwdGNjYW5wbm5xaGZnZXdmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTUyNzQwMSwiZXhwIjoyMDk1MTAzNDAxfQ.9NJQoGYCJvnHg-BVte6QSQjQ2ZBn8AUfw8x-zu8ALFg';
-const BUCKET      = 'media';
+const PROJECT_URL = process.env.SUPABASE_URL ?? '';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const BUCKET      = process.env.SUPABASE_BUCKET ?? 'media';
 
 function storageUrl(path: string) {
   return `${PROJECT_URL}/storage/v1/object/${path}`;
