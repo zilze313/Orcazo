@@ -161,15 +161,14 @@ export default function AdminSettingsPage() {
           </div>
         </Card>
 
-        {/* Idle-proxy reclamation */}
+        {/* Inactivity warning emails */}
         <Card className="p-5 space-y-4">
-          <h3 className="font-semibold text-sm">Idle-proxy reclamation</h3>
+          <h3 className="font-semibold text-sm">Inactivity warning emails</h3>
           <p className="text-xs text-muted-foreground">
-            Automatically free up proxy emails held by inactive creators so you can reassign them.
-            A creator who hasn't logged in is warned by email after <strong>3 days</strong>, and if
-            still idle 48 hours later (<strong>day 5</strong>) their proxy is detached and they're
-            logged out — their data is kept so you can reconnect them later. Creators who have earned
-            more than the protect amount below are never auto-reclaimed.
+            A daily check emails creators who haven't logged in for <strong>3 days</strong>, nudging
+            them to come back. Nothing is paused, detached, or deleted automatically — to free an idle
+            proxy, reclaim it yourself from the <strong>Creator Activity</strong> page. Creators who
+            have earned more than the protect amount below are left alone (no email).
           </p>
 
           <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -181,8 +180,8 @@ export default function AdminSettingsPage() {
               className="h-4 w-4 rounded border-input"
             />
             <span className="text-sm">
-              Enable automatic reclamation
-              <span className="text-muted-foreground"> — leave off to only reclaim manually from the Activity page.</span>
+              Send inactivity warning emails
+              <span className="text-muted-foreground"> — a daily job emails creators who've been idle a few days.</span>
             </span>
           </label>
 
@@ -198,7 +197,7 @@ export default function AdminSettingsPage() {
               disabled={isLoading}
             />
             <p className="text-xs text-muted-foreground">
-              0 means anyone who has earned anything at all is protected. Ghosts ($0 earned) are always eligible.
+              0 means anyone who has earned anything at all is protected. Ghosts ($0 earned) still get the email.
             </p>
           </div>
         </Card>

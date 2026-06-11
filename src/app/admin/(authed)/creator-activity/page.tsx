@@ -118,15 +118,15 @@ export default function CreatorActivityPage() {
           <PoolCard icon={Unplug} label="Reclaimable" value={pool?.reclaimable} loading={query.isLoading} tone={(pool?.reclaimable ?? 0) > 0 ? 'warning' : 'muted'} />
         </div>
 
-        {/* Auto-reclaim status banner */}
-        {query.data && !query.data.reclaimEnabled && (pool?.reclaimable ?? 0) > 0 && (
+        {/* Idle-proxy nudge */}
+        {query.data && (pool?.reclaimable ?? 0) > 0 && (
           <Card className="p-4 border-yellow-500/40 bg-yellow-500/5 flex items-start gap-3">
             <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
-              <span className="font-medium">Auto-reclaim is off.</span>{' '}
+              <span className="font-medium">Idle proxies sitting unused.</span>{' '}
               <span className="text-muted-foreground">
-                {pool?.reclaimable} idle prox{pool?.reclaimable === 1 ? 'y is' : 'ies are'} sitting unused.
-                Reclaim them below, or enable automatic reclamation in Settings.
+                {pool?.reclaimable} prox{pool?.reclaimable === 1 ? 'y is' : 'ies are'} idle and not earning.
+                Reclaim any you want to reassign using the buttons below.
               </span>
             </div>
           </Card>

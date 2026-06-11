@@ -1,11 +1,14 @@
-// Shared logic for idle-proxy reclamation. Used by both the admin activity
-// dashboard API and the reclaim cron so classification + detach behave identically.
+// Shared logic for idle-proxy classification + manual reclamation. Used by the
+// admin activity dashboard (status badges + the manual "Reclaim" action) and by
+// the inactivity-warning cron, so both classify creators identically.
+//
+// Note: there is NO automatic detach. A proxy is only ever freed when an admin
+// clicks "Reclaim"; the cron just emails idle creators a nudge.
 
 import 'server-only';
 import { db } from './db';
 
-export const WARN_DAYS = 3;                       // warn after this many idle days
-export const DETACH_GRACE_MS = 48 * 60 * 60 * 1000; // detach 48h after the warning (≈ day 5)
+export const WARN_DAYS = 3; // warn after this many idle days
 
 export type ActivityStatus =
   | 'earning'           // protected: has earned > threshold

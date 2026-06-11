@@ -1,10 +1,12 @@
 // GET /api/cron/reclaim-idle-proxies
 //
-// Idle-proxy reclamation. For every creator holding a proxy who is NOT protected
+// Inactivity warning emails. For every creator holding a proxy who is NOT protected
 // (earnings <= protect threshold):
-//   • idle >= WARN_DAYS and not yet warned  → send "log in or lose access" email, stamp warning
-//   • warned >= 48h ago and still idle       → detach the proxy (free it) + force logout
-//   • logged back in / now protected         → clear the stale warning
+//   • idle >= WARN_DAYS and not yet warned  → send the "we haven't seen you" email, stamp warning
+//   • logged back in / now protected        → clear the stale warning so they can be warned again later
+//
+// Proxies are NEVER detached automatically. An idle proxy is only ever freed by an
+// admin from the Creator Activity page; this job only sends the nudge email.
 //
 // Gated by the proxyReclaimEnabled setting (default off). Invoked by Vercel Cron
 // once per day (see vercel.json).
@@ -13,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/api';
 import { getProxyReclaimConfig } from '@/lib/settings';
-import { classify, reclaimProxyByEmail, WARN_DAYS, DETACH_GRACE_MS } from '@/lib/proxy-reclaim';
+import { classify, WARN_DAYS } from '@/lib/proxy-reclaim';
 import { sendEmail, accountInactivityWarningEmail } from '@/lib/email';
 import { log } from '@/lib/logger';
 
@@ -42,18 +44,18 @@ export async function GET(req: NextRequest) {
 
   const config = await getProxyReclaimConfig();
   if (!config.enabled) {
-    return ok({ ok: true, skipped: 'disabled', warned: 0, detached: 0 });
+    return ok({ ok: true, skipped: 'disabled', warned: 0 });
   }
 
   const now = Date.now();
 
-  // Only rows that still hold a proxy can be reclaimed.
+  // Only rows that still hold a proxy are relevant.
   const rows = await db.allowlist.findMany({
     where: { proxyEmail: { not: null } },
     select: { email: true, proxyEmail: true, proxyConnectedAt: true, reclaimWarningSentAt: true },
     take: 1000,
   });
-  if (rows.length === 0) return ok({ ok: true, warned: 0, detached: 0, cleared: 0 });
+  if (rows.length === 0) return ok({ ok: true, warned: 0, cleared: 0 });
 
   const emails = rows.map((r) => r.email);
   const employees = await db.employee.findMany({
@@ -81,11 +83,10 @@ export async function GET(req: NextRequest) {
   const loginUrl = `${appUrl}/login`;
 
   let warned = 0;
-  let detached = 0;
   let cleared = 0;
 
   for (const r of rows) {
-    if (warned + detached >= MAX_PER_RUN) break;
+    if (warned >= MAX_PER_RUN) break;
 
     const emp = empByEmail.get(r.email);
     const earnings = emp
@@ -112,20 +113,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (r.reclaimWarningSentAt) {
-      // Already warned. Did they come back after the warning?
+      // Already warned. If they came back after the warning, clear the flag so a
+      // later idle stretch can warn them again. Otherwise leave it as-is: we never
+      // email twice for the same stretch, and the proxy is never auto-detached
+      // (admins free idle proxies manually from the Creator Activity page).
       const cameBack = emp?.lastLoginAt && new Date(emp.lastLoginAt).getTime() > new Date(r.reclaimWarningSentAt).getTime();
       if (cameBack) {
         await db.allowlist.update({ where: { email: r.email }, data: { reclaimWarningSentAt: null } }).catch(() => {});
         cleared++;
-        continue;
-      }
-      // Still idle — has the 48h grace elapsed?
-      if (now - new Date(r.reclaimWarningSentAt).getTime() >= DETACH_GRACE_MS) {
-        const res = await reclaimProxyByEmail(r.email);
-        if (res.proxyEmail) {
-          detached++;
-          log.info('cron.proxy_reclaimed', { email: r.email, freedProxy: res.proxyEmail });
-        }
       }
       continue;
     }
@@ -144,8 +139,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  log.info('cron.reclaim_idle_proxies', { scanned: rows.length, warned, detached, cleared });
-  return ok({ ok: true, scanned: rows.length, warned, detached, cleared });
+  log.info('cron.reclaim_idle_proxies', { scanned: rows.length, warned, cleared });
+  return ok({ ok: true, scanned: rows.length, warned, cleared });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
