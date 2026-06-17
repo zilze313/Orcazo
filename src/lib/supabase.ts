@@ -101,8 +101,13 @@ export async function createSignedUploadUrl(filePath: string): Promise<{ uploadU
   }
 
   const json = await res.json() as { url: string; token: string };
-  // json.url is a path like /storage/v1/object/upload/sign/media/homepage/uuid.mp4?token=...
-  const uploadUrl = `${PROJECT_URL}${json.url}`;
+  // The REST API returns a path WITHOUT the `/storage/v1` prefix, e.g.
+  //   /object/upload/sign/media/homepage/uuid.mp4?token=...
+  // The browser must PUT to the full storage path; otherwise it hits a 404 on
+  // the gateway which has no CORS headers, and the upload fails with a generic
+  // "Network error". Prepend `/storage/v1` defensively (no-op if already there).
+  const path = json.url.startsWith('/storage/v1') ? json.url : `/storage/v1${json.url}`;
+  const uploadUrl = `${PROJECT_URL}${path}`;
   const publicUrl = getPublicUrl(filePath);
   return { uploadUrl, publicUrl };
 }
