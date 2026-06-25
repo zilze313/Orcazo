@@ -132,6 +132,7 @@ model Employee {
   payouts         PayoutRequest[]
   messages        ChatMessage[]
   referralClaims  ReferralClaim[]
+  customCampaignApplications CustomCampaignApplication[]
 
   @@index([email])
   @@index([lastLoginAt(sort: Desc)])
@@ -486,4 +487,71 @@ enum ContactMessageStatus {
   NEW
   RESOLVED
   DISMISSED
+}
+
+/// Admin-created "house" campaigns shown alongside upstream ones to make the
+/// platform look like it has its own roster. Applications stay PENDING for the
+/// configured delay (default 48h), then a daily cron flips them to
+/// AUTO_REJECTED with the global rejection reason from AdminSetting.
+/// publicId is always prefixed `cc_` so it can be detected in merged feeds.
+model CustomCampaign {
+  id                   String    @id @default(cuid())
+  publicId             String    @unique
+  name                 String    @db.VarChar(200)
+  iconUrl              String?   @db.Text
+  description          String?   @db.Text
+  rulesHtml            String?   @db.Text
+  /// Per-1000-views rate displayed to creators (post-commission display value).
+  rpm                  Decimal   @db.Decimal(10, 2)
+  base                 Decimal   @default(0) @db.Decimal(10, 2)
+  cap                  Decimal   @db.Decimal(10, 2)
+  threshold            Int       @default(1000)
+  thresholdType        String    @default("views")
+  platforms            String[]  @default([])
+  languages            String[]  @default([])
+  /// JSON array of { url, ordering?, platform? }
+  examplesJson         Json      @default("[]")
+  totalBudget          Decimal?  @db.Decimal(12, 2)
+  budgetRemaining      Decimal?  @db.Decimal(12, 2)
+  /// Fake "approval rate" shown on the card (0-100).
+  approvalRate         Float?
+  dateEnd              DateTime?
+  inviteOnly           Boolean   @default(false)
+  active               Boolean   @default(true)
+  ordering             Int       @default(0)
+  /// Hours an application must stay pending before the cron auto-rejects it.
+  autoRejectDelayHours Int       @default(48)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  applications CustomCampaignApplication[]
+
+  @@index([active, ordering])
+  @@index([active, createdAt(sort: Desc)])
+}
+
+enum CustomCampaignApplicationStatus {
+  PENDING
+  AUTO_REJECTED
+}
+
+model CustomCampaignApplication {
+  id               String                          @id @default(cuid())
+  customCampaignId String
+  customCampaign   CustomCampaign                  @relation(fields: [customCampaignId], references: [id], onDelete: Cascade)
+  employeeId       String
+  employee         Employee                        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// Social.publicId from upstream (we don't store Socials locally).
+  socialPublicId   String
+  socialPlatform   String
+  socialHandle     String
+  status           CustomCampaignApplicationStatus @default(PENDING)
+  /// Snapshot of the rejection reason in effect when this app was auto-rejected.
+  rejectionReason  String?                         @db.Text
+  rejectedAt       DateTime?
+  createdAt        DateTime                        @default(now())
+
+  @@unique([customCampaignId, employeeId, socialPublicId])
+  @@index([employeeId, customCampaignId])
+  @@index([status, createdAt])
 }

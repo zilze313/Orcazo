@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/reclaim-idle-proxies",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/auto-reject-custom",
+      "schedule": "0 9 * * *"
     }
   ]
 }

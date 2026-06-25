@@ -2,14 +2,17 @@
 // PUT  /api/admin/settings  → update one or more settings
 
 import { withAdmin, ok, fail } from '@/lib/api';
-import { getAllSettings, setSetting, KEYS } from '@/lib/settings';
+import { getAllSettings, setSetting, KEYS, getCustomCampaignRejectionReason } from '@/lib/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export const GET = withAdmin(async () => {
-  const settings = await getAllSettings();
-  return ok(settings);
+  const [settings, customCampaignRejectionReason] = await Promise.all([
+    getAllSettings(),
+    getCustomCampaignRejectionReason(),
+  ]);
+  return ok({ ...settings, customCampaignRejectionReason });
 });
 
 export const PUT = withAdmin(async ({ req }) => {
@@ -46,6 +49,11 @@ export const PUT = withAdmin(async ({ req }) => {
     const v = parseFloat(String(body.proxyReclaimProtectEarnings));
     if (!Number.isFinite(v) || v < 0) return fail(400, 'proxyReclaimProtectEarnings must be ≥ 0');
     updates.push(setSetting(KEYS.PROXY_RECLAIM_PROTECT_EARNINGS, String(v)));
+  }
+
+  if ('customCampaignRejectionReason' in body) {
+    const v = String(body.customCampaignRejectionReason ?? '').slice(0, 1000);
+    updates.push(setSetting(KEYS.CUSTOM_CAMPAIGN_REJECTION_REASON, v));
   }
 
   await Promise.all(updates);

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
-  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox, Mail,
+  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox, Mail, Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -46,6 +46,7 @@ const NAV = [
   { href: '/admin/submissions',      label: 'Submissions',        icon: FileText,        permission: 'campaigns' },
   { href: '/admin/campaigns',        label: 'Campaigns',          icon: LayoutGrid,      permission: 'campaigns' },
   { href: '/admin/campaign-rules',   label: 'Campaign Rules',     icon: BookOpen,        permission: 'campaigns' },
+  { href: '/admin/custom-campaigns', label: 'Custom Campaigns',   icon: Sparkles,        permission: 'campaigns' },
   { href: '/admin/announcements',    label: 'Announcements',      icon: Megaphone,       permission: 'content' },
   { href: '/admin/referral-codes',   label: 'Referral Codes',     icon: Tag,             permission: 'referral-codes' },
   { href: '/admin/messages',         label: 'Messages',           icon: MessageSquare,   permission: 'messages' },

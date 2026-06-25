@@ -15,7 +15,12 @@ export const KEYS = {
   /// figure above which a creator is protected from auto-reclaim.
   PROXY_RECLAIM_ENABLED:          'proxyReclaimEnabled',
   PROXY_RECLAIM_PROTECT_EARNINGS: 'proxyReclaimProtectEarnings',
+  /// Global rejection reason shown when the auto-reject cron flips a
+  /// CustomCampaignApplication from PENDING → AUTO_REJECTED.
+  CUSTOM_CAMPAIGN_REJECTION_REASON: 'customCampaignRejectionReason',
 } as const;
+
+const DEFAULT_REJECTION_REASON = 'After reviewing your application, the brand decided to go in a different direction for this campaign. We appreciate your interest and encourage you to apply to other open campaigns.';
 
 async function getRaw(key: string): Promise<string | null> {
   const row = await db.adminSetting.findUnique({ where: { key } }).catch(() => null);
@@ -90,6 +95,11 @@ export async function getProxyReclaimConfig(): Promise<{ enabled: boolean; prote
     enabled:         parseBool(e ?? undefined),
     protectEarnings: parseProtectEarnings(p ?? undefined),
   };
+}
+
+export async function getCustomCampaignRejectionReason(): Promise<string> {
+  const v = await getRaw(KEYS.CUSTOM_CAMPAIGN_REJECTION_REASON);
+  return v && v.trim().length > 0 ? v : DEFAULT_REJECTION_REASON;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {

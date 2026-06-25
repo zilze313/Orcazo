@@ -18,6 +18,12 @@ export const POST = withEmployee(async ({ req, session }) => {
   const parsed = await parseBody(req, submitPostBody);
   if ('errorResponse' in parsed) return parsed.errorResponse;
 
+  // House (custom) campaigns never reach approved state, so there's no
+  // valid path for a creator to submit a clip against one. Reject early.
+  if (parsed.data.campaignPublicId.startsWith('cc_')) {
+    return fail(400, 'This campaign is not accepting submissions yet', 'CUSTOM_CAMPAIGN_NO_SUBMIT');
+  }
+
   const tz = parsed.data.creatorTimezone || 'UTC';
 
   let upstream;

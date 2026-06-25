@@ -17,6 +17,7 @@ import {
 import { limits } from "@/lib/ratelimit";
 import { db } from "@/lib/db";
 import { getEarningsMultiplier } from "@/lib/settings";
+import { mapCustomCampaignToSummary } from "@/lib/custom-campaigns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,26 +88,38 @@ export const GET = withEmployee(
       Math.max(1, parseInt(url.searchParams.get("pageSize") || "24", 10)),
     );
 
-    const [campaignsResp, appsResp, customRulesRows, hiddenRows, overrideRows, M] =
-      await Promise.all([
-        fetchCampaigns(
-          session.affiliateNetworkToken,
-          session.affiliateNetworkCookies,
-        ),
-        fetchApplications(
-          session.affiliateNetworkToken,
-          session.affiliateNetworkCookies,
-        ),
-        db.campaignRules.findMany({
-          select: { campaignPublicId: true, rulesHtml: true },
-        }),
-        db.campaignVisibility.findMany({
-          where: { hidden: true },
-          select: { campaignPublicId: true },
-        }),
-        db.campaignOverride.findMany(),
-        getEarningsMultiplier(),
-      ]);
+    const [
+      campaignsResp,
+      appsResp,
+      customRulesRows,
+      hiddenRows,
+      overrideRows,
+      customCampaigns,
+      customApps,
+      M,
+    ] = await Promise.all([
+      fetchCampaigns(
+        session.affiliateNetworkToken,
+        session.affiliateNetworkCookies,
+      ),
+      fetchApplications(
+        session.affiliateNetworkToken,
+        session.affiliateNetworkCookies,
+      ),
+      db.campaignRules.findMany({
+        select: { campaignPublicId: true, rulesHtml: true },
+      }),
+      db.campaignVisibility.findMany({
+        where: { hidden: true },
+        select: { campaignPublicId: true },
+      }),
+      db.campaignOverride.findMany(),
+      db.customCampaign.findMany({ where: { active: true } }),
+      db.customCampaignApplication.findMany({
+        where: { employeeId: session.employeeId },
+      }),
+      getEarningsMultiplier(),
+    ]);
 
     const customRulesMap = new Map(
       customRulesRows.map((r) => [r.campaignPublicId, r.rulesHtml]),
@@ -125,6 +138,22 @@ export const GET = withEmployee(
       (a, b) => Number(a.ordering ?? 9999) - Number(b.ordering ?? 9999),
     );
 
+    // Pre-build custom-campaign summaries (matched to this employee's applications).
+    const customAppsByCampaign = new Map<string, typeof customApps>();
+    for (const a of customApps) {
+      const list = customAppsByCampaign.get(a.customCampaignId) ?? [];
+      list.push(a);
+      customAppsByCampaign.set(a.customCampaignId, list);
+    }
+    let customSummaries = customCampaigns.map((cc) =>
+      mapCustomCampaignToSummary(cc, customAppsByCampaign.get(cc.id) ?? []),
+    );
+    if (search)
+      customSummaries = customSummaries.filter((c) =>
+        c.name.toLowerCase().includes(search),
+      );
+    customSummaries.sort((a, b) => a._ordering - b._ordering);
+
     // Build a per-campaign application index (a creator can apply with multiple socials)
     const apps = appsResp.campaignApplications ?? [];
     const appsByCampaign = new Map<
@@ -141,11 +170,10 @@ export const GET = withEmployee(
       appsByCampaign.set(a.campaign.publicId, list);
     }
 
-    const total = campaigns.length;
-    const start = (page - 1) * pageSize;
-    const slice = campaigns.slice(start, start + pageSize);
-
-    const items = slice.map((c) => {
+    // Real campaigns mapped to summary shape first; custom summaries concat
+    // in front. Avoids a discriminated-union flatMap whose inferred type can't
+    // unify the two output shapes.
+    const realItems = campaigns.map((c) => {
       const ov = overrideMap.get(c.publicId);
       let rates = doubleRates(c.rates, M);
 
@@ -200,6 +228,14 @@ export const GET = withEmployee(
         applications: appsByCampaign.get(c.publicId) ?? [],
       };
     });
+
+    const customItems = customSummaries.map(
+      ({ _ordering: _ignore, ...rest }) => rest,
+    );
+    const allItems = [...customItems, ...realItems];
+    const total = allItems.length;
+    const start = (page - 1) * pageSize;
+    const items = allItems.slice(start, start + pageSize);
 
     return ok({
       items,
