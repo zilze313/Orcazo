@@ -18,6 +18,8 @@ import { limits } from "@/lib/ratelimit";
 import { db } from "@/lib/db";
 import { getEarningsMultiplier } from "@/lib/settings";
 import { mapCustomCampaignToSummary } from "@/lib/custom-campaigns";
+import { log } from "@/lib/logger";
+import type { CustomCampaign, CustomCampaignApplication } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,10 +116,21 @@ export const GET = withEmployee(
         select: { campaignPublicId: true },
       }),
       db.campaignOverride.findMany(),
-      db.customCampaign.findMany({ where: { active: true } }),
-      db.customCampaignApplication.findMany({
-        where: { employeeId: session.employeeId },
-      }),
+      // Custom campaigns are an enhancement layer — if their queries fail (e.g.
+      // the table is missing or the DB hiccups), degrade gracefully so the real
+      // campaign feed still loads instead of failing the whole request with a 500.
+      db.customCampaign
+        .findMany({ where: { active: true } })
+        .catch((err): CustomCampaign[] => {
+          log.error("campaigns.custom_campaigns_failed", { err: String(err) });
+          return [];
+        }),
+      db.customCampaignApplication
+        .findMany({ where: { employeeId: session.employeeId } })
+        .catch((err): CustomCampaignApplication[] => {
+          log.error("campaigns.custom_apps_failed", { err: String(err) });
+          return [];
+        }),
       getEarningsMultiplier(),
     ]);
 
