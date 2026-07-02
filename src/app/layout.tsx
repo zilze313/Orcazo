@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { Providers } from '@/components/providers';
-import { SITE } from '@/config/site';
-import { WhatsAppButton } from '@/components/whatsapp-button';
+import type { Metadata } from "next";
+import "./globals.css";
+import { Providers } from "@/components/providers";
+import { SITE } from "@/config/site";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 
 export const metadata: Metadata = {
   title: { default: SITE.name, template: `%s | ${SITE.name}` },
@@ -11,11 +11,15 @@ export const metadata: Metadata = {
     title: SITE.name,
     description: SITE.description,
     siteName: SITE.name,
-    type: 'website',
+    type: "website",
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -24,7 +28,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>{children}</Providers>
-        <WhatsAppButton />
       </body>
     </html>
   );
