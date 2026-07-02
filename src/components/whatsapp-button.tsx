@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
+import { usePathname } from "next/navigation";
 
-const WHATSAPP_NUMBER = '447402490553';
+const WHATSAPP_NUMBER = "447407105222";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 /**
@@ -12,7 +12,7 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 export function WhatsAppButton() {
   const pathname = usePathname();
 
-  if (pathname?.startsWith('/admin')) return null;
+  if (pathname?.startsWith("/admin")) return null;
 
   return (
     <a

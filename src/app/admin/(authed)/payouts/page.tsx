@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Wallet, Search, ChevronDown, ChevronRight, Loader2,
-  Banknote, Bitcoin, Copy, CheckCircle2, Clock, XCircle, AlertCircle,
+  Banknote, Bitcoin, Mail, Copy, CheckCircle2, Clock, XCircle, AlertCircle,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -28,7 +28,7 @@ type Status = 'REQUESTED' | 'IN_PROGRESS' | 'PAID' | 'REJECTED' | 'CANCELLED';
 interface PayoutEntry {
   id: string;
   employeeId: string;
-  method: 'BANK' | 'CRYPTO';
+  method: 'BANK' | 'CRYPTO' | 'PAYPAL';
   details: Record<string, string>;
   amountAtRequest: string;
   amountPaid: string | null;
@@ -401,8 +401,8 @@ function PayoutRow({
 
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1">
-              {entry.method === 'BANK' ? <Banknote className="h-3 w-3" /> : <Bitcoin className="h-3 w-3" />}
-              {entry.method === 'BANK' ? 'Bank transfer' : 'Crypto'}
+              {entry.method === 'BANK' ? <Banknote className="h-3 w-3" /> : entry.method === 'CRYPTO' ? <Bitcoin className="h-3 w-3" /> : <Mail className="h-3 w-3" />}
+              {entry.method === 'BANK' ? 'Bank transfer' : entry.method === 'CRYPTO' ? 'Crypto' : 'PayPal'}
             </span>
             <span>·</span>
             <span className="font-medium text-foreground">{formatMoney(amountReq)} requested</span>

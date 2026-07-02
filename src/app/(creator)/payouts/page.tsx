@@ -11,6 +11,7 @@ import {
   DollarSign,
   Banknote,
   Bitcoin,
+  Mail,
   Loader2,
   Send,
   Clock,
@@ -55,7 +56,7 @@ interface PayoutItem {
   amountPaid: number | null;
   penalty: number | null;
   adminNote: string | null;
-  method: "BANK" | "CRYPTO";
+  method: "BANK" | "CRYPTO" | "PAYPAL";
   paidAt: string | null;
   rejectedAt: string | null;
 }
@@ -68,12 +69,12 @@ interface PayoutsResp {
   canRequest: boolean;
   pending: { id: string; status: string; createdAt: string } | null;
   savedDetails: {
-    method: "BANK" | "CRYPTO";
+    method: "BANK" | "CRYPTO" | "PAYPAL";
     details: Record<string, string>;
   } | null;
 }
 
-type PayoutMethod = "BANK" | "CRYPTO";
+type PayoutMethod = "BANK" | "CRYPTO" | "PAYPAL";
 const NETWORKS = [
   "BTC",
   "ETH",
@@ -107,7 +108,12 @@ const cryptoSchema = z.object({
   address: z.string().trim().min(10, "Wallet address required").max(200),
   notes: z.string().trim().max(500).optional(),
 });
-const formSchema = z.discriminatedUnion("method", [bankSchema, cryptoSchema]);
+const paypalSchema = z.object({
+  method: z.literal("PAYPAL"),
+  email: z.string().trim().email("Enter a valid PayPal email").max(254),
+  notes: z.string().trim().max(500).optional(),
+});
+const formSchema = z.discriminatedUnion("method", [bankSchema, cryptoSchema, paypalSchema]);
 type FormData = z.infer<typeof formSchema>;
 
 function statusVariant(
@@ -347,16 +353,12 @@ function RequestForm({
 }) {
   const initial: Partial<FormData> =
     saved?.method === "BANK"
-      ? ({
-          method: "BANK",
-          ...(saved.details as Record<string, string>),
-        } as FormData)
+      ? ({ method: "BANK", ...(saved.details as Record<string, string>) } as FormData)
       : saved?.method === "CRYPTO"
-        ? ({
-            method: "CRYPTO",
-            ...(saved.details as Record<string, string>),
-          } as FormData)
-        : { method };
+        ? ({ method: "CRYPTO", ...(saved.details as Record<string, string>) } as FormData)
+        : saved?.method === "PAYPAL"
+          ? ({ method: "PAYPAL", ...(saved.details as Record<string, string>) } as FormData)
+          : { method };
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -383,7 +385,7 @@ function RequestForm({
         </div>
       )}
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 flex-wrap">
         <Button
           type="button"
           variant={method === "BANK" ? "default" : "outline"}
@@ -399,6 +401,14 @@ function RequestForm({
           onClick={() => onMethodChange("CRYPTO")}
         >
           <Bitcoin className="h-4 w-4" /> Crypto
+        </Button>
+        <Button
+          type="button"
+          variant={method === "PAYPAL" ? "default" : "outline"}
+          size="sm"
+          onClick={() => onMethodChange("PAYPAL")}
+        >
+          <Mail className="h-4 w-4" /> PayPal
         </Button>
       </div>
 
@@ -451,7 +461,7 @@ function RequestForm({
               </Field>
             </div>
           </>
-        ) : (
+        ) : method === "CRYPTO" ? (
           <>
             <Field label="Network">
               <Select
@@ -489,6 +499,21 @@ function RequestForm({
             <p className="text-xs text-muted-foreground">
               Make sure the address matches the network. Funds sent to the wrong
               network are usually unrecoverable.
+            </p>
+          </>
+        ) : (
+          <>
+            <Field label="PayPal email">
+              <Input
+                type="email"
+                placeholder="your@paypal.com"
+                disabled={submitting}
+                {...form.register("email" as const)}
+              />
+              <FieldError name="email" form={form} />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Enter the email address linked to your PayPal account.
             </p>
           </>
         )}

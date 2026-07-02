@@ -31,6 +31,7 @@ enum AdminRole {
 enum PayoutMethod {
   BANK
   CRYPTO
+  PAYPAL
 }
 
 enum PayoutStatus {

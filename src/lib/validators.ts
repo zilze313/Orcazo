@@ -128,6 +128,11 @@ export const payoutRequestBody = z.discriminatedUnion("method", [
     address: z.string().trim().min(10).max(200),
     notes: z.string().trim().max(500).optional(),
   }),
+  z.object({
+    method: z.literal("PAYPAL"),
+    email: z.string().trim().email("Enter a valid PayPal email").max(254),
+    notes: z.string().trim().max(500).optional(),
+  }),
 ]);
 
 export const updatePayoutStatusBody = z.object({

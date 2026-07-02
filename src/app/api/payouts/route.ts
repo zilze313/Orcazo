@@ -210,8 +210,10 @@ export const POST = withEmployee(async ({ req, session }) => {
   let details: Record<string, unknown>;
   if (data.method === 'BANK') {
     details = { holderName: data.holderName, bankName: data.bankName, iban: data.iban, swift: data.swift };
-  } else {
+  } else if (data.method === 'CRYPTO') {
     details = { network: data.network, address: data.address };
+  } else {
+    details = { email: data.email };
   }
 
   const created = await db.payoutRequest.create({
