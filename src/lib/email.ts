@@ -303,6 +303,37 @@ export function accountInactivityWarningEmail(opts: {
   };
 }
 
+export function repostNewPostEmail(opts: {
+  accountLabel: string;
+  postUrl: string;
+  note?: string | null;
+  feedUrl: string;
+}): { subject: string; html: string } {
+  const { accountLabel, postUrl, note, feedUrl } = opts;
+  return {
+    subject: `New post on ${accountLabel} — repost it now`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 12px;">New post on ${escapeHtml(accountLabel)}</h1>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+          An account you're subscribed to just posted. Repost it to your own audience, then submit your repost link so we can review it.
+        </p>
+        <blockquote style="margin: 0 0 20px; padding: 14px 16px; border-left: 3px solid #111; background: #f7f7f7; font-size: 13px; line-height: 1.5; word-break: break-all;">
+          <a href="${escapeHtml(postUrl)}" style="color:#111;">${escapeHtml(postUrl)}</a>
+        </blockquote>
+        ${note ? `<p style="font-size: 13px; color: #555; line-height: 1.6; margin: 0 0 16px;">${escapeHtml(note)}</p>` : ''}
+        <p style="text-align:center; margin: 24px 0;">
+          <a href="${feedUrl}" style="display:inline-block; padding: 10px 18px; background: #111; color: #fff; text-decoration:none; border-radius: 6px; font-size: 14px; font-weight: 600;">Submit your repost</a>
+        </p>
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
+      </div>
+    `.trim(),
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

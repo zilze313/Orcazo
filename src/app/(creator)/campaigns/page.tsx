@@ -12,6 +12,8 @@ import { EmptyState } from '@/components/empty-state';
 import { PaginationBar } from '@/components/pagination-bar';
 import { CampaignCard } from '@/components/campaigns/campaign-card';
 import { CampaignsResponse } from '@/components/campaigns/types';
+import { RepostCampaignCard } from '@/components/repost/repost-campaign-card';
+import { RepostCampaignsResponse } from '@/components/repost/types';
 import { api, isUpstreamExpired } from '@/lib/api-client';
 
 export default function CampaignsPage() {
@@ -47,6 +49,14 @@ export default function CampaignsPage() {
     if (query.error && isUpstreamExpired(query.error)) router.replace('/login');
   }, [query.error, router]);
 
+  // Reposting programs are a separate campaign type — not upstream, not
+  // affected by the search box — shown as their own row above the main grid.
+  const repostQuery = useQuery<RepostCampaignsResponse>({
+    queryKey: ['repost', 'campaigns'],
+    queryFn: () => api.get<RepostCampaignsResponse>('/api/repost/campaigns'),
+    staleTime: 30_000,
+  });
+
   const setPage = (p: number) => {
     const u = new URLSearchParams(params);
     u.set('page', String(p));
@@ -71,6 +81,16 @@ export default function CampaignsPage() {
         }
       />
       <div className="container max-w-7xl py-6">
+        {!!repostQuery.data?.items.length && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Reposting Programs
+            </h2>
+            <Grid>
+              {repostQuery.data.items.map((c) => <RepostCampaignCard key={c.publicId} campaign={c} />)}
+            </Grid>
+          </div>
+        )}
         {query.isLoading ? (
           <Grid>{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-72" />)}</Grid>
         ) : query.error ? (

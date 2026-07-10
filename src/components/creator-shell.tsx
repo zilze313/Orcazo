@@ -19,6 +19,7 @@ import {
   MessageCircle,
   PlayCircle,
   Gift,
+  Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { NotificationBell } from "@/components/notification-bell";
 
 const NAV = [
   { href: "/campaigns",      label: "Explore Campaigns",    icon: Compass   },
@@ -34,6 +36,7 @@ const NAV = [
   { href: "/dashboard",      label: "Dashboard",            icon: LineChart },
   { href: "/social-accounts",label: "Social Media Accounts",icon: AtSign    },
   { href: "/payouts",        label: "Payouts",              icon: Wallet    },
+  { href: "/reposting",      label: "Reposting",            icon: Repeat    },
   { href: "/referrals",     label: "Referrals",            icon: Gift      },
   { href: "/updates",        label: "Updates",              icon: Newspaper      },
   { href: "/support",        label: "Support",              icon: MessageCircle  },
@@ -93,14 +96,17 @@ export function CreatorShell({
         <div className="h-16 px-5 flex items-center gap-2 border-b">
           <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
           <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors md:flex"
-            aria-label="Toggle theme"
-          >
-            <Sun className="h-4 w-4 hidden dark:block" />
-            <Moon className="h-4 w-4 block dark:hidden" />
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors md:flex"
+              aria-label="Toggle theme"
+            >
+              <Sun className="h-4 w-4 hidden dark:block" />
+              <Moon className="h-4 w-4 block dark:hidden" />
+            </button>
+          </div>
           <button
             className="p-1.5 md:hidden"
             onClick={() => setMobileOpen(false)}

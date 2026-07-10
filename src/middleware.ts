@@ -26,6 +26,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/social-accounts') ||
     pathname.startsWith('/payouts') ||
+    pathname.startsWith('/reposting') ||
     pathname.startsWith('/referrals') ||
     pathname.startsWith('/updates') ||
     pathname.startsWith('/support') ||

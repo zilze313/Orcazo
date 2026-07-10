@@ -48,6 +48,19 @@ enum ReferralClaimStatus {
   REJECTED
 }
 
+enum RepostSubmissionStatus {
+  PENDING
+  REVIEWED
+}
+
+enum RepostPayoutStatus {
+  REQUESTED
+  IN_PROGRESS
+  PAID
+  CANCELLED
+  REJECTED
+}
+
 model Allowlist {
   id                  String   @id @default(cuid())
   // Public-facing email — what the creator types at /login.
@@ -134,6 +147,11 @@ model Employee {
   messages        ChatMessage[]
   referralClaims  ReferralClaim[]
   customCampaignApplications CustomCampaignApplication[]
+  notifications          Notification[]
+  repostSubscriptions     RepostSubscription[]
+  repostSubmissions       RepostSubmission[]
+  repostCredits           RepostCredit[]
+  repostPayoutRequests    RepostPayoutRequest[]
 
   @@index([email])
   @@index([lastLoginAt(sort: Desc)])
@@ -555,4 +573,160 @@ model CustomCampaignApplication {
   @@unique([customCampaignId, employeeId, socialPublicId])
   @@index([employeeId, customCampaignId])
   @@index([status, createdAt])
+}
+
+/// In-app notifications for creators. Feeds the bell menu in the creator shell.
+model Notification {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       String // payout_approved | payout_rejected | repost_new_post | repost_credit | system
+  title      String
+  body       String?
+  url        String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, readAt])
+  @@index([employeeId, createdAt(sort: Desc)])
+}
+
+// =============================================================
+// Reposting — a separate, real campaign type. Creators subscribe to admin-
+// owned social accounts; admin logs new posts against those accounts; creators
+// repost + submit proof; admin pays out of a fully separate wallet (never
+// mixed with the upstream/AffiliateNetwork-derived balance).
+// =============================================================
+
+/// A repost program shown as a "Subscribe" card in the creator feed. Admin can
+/// create multiple (e.g. one per niche/platform), each with its own roster of
+/// source accounts.
+model RepostCampaign {
+  id          String   @id @default(cuid())
+  publicId    String   @unique
+  name        String   @db.VarChar(200)
+  iconUrl     String?  @db.Text
+  description String?  @db.Text
+  rulesHtml   String?  @db.Text
+  active      Boolean  @default(true)
+  ordering    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sourceAccounts RepostSourceAccount[]
+
+  @@index([active, ordering])
+}
+
+/// An admin-owned social account creators can subscribe to. When admin logs a
+/// new post against this account, every subscriber is notified.
+model RepostSourceAccount {
+  id               String         @id @default(cuid())
+  repostCampaignId String
+  repostCampaign   RepostCampaign @relation(fields: [repostCampaignId], references: [id], onDelete: Cascade)
+  platform         String
+  handle           String         @db.VarChar(120)
+  displayName      String?        @db.VarChar(160)
+  profileUrl       String?        @db.Text
+  avatarUrl        String?        @db.Text
+  active           Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  subscriptions RepostSubscription[]
+  posts         RepostPost[]
+
+  @@index([repostCampaignId, active])
+}
+
+/// A creator "following" an admin source account. Instant, no approval — the
+/// creator toggles this on/off freely.
+model RepostSubscription {
+  id             String              @id @default(cuid())
+  employeeId     String
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  sourceAccountId String
+  sourceAccount  RepostSourceAccount @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+
+  @@unique([employeeId, sourceAccountId])
+  @@index([sourceAccountId])
+  @@index([employeeId])
+}
+
+/// Admin logs a new post published on a source account (just a URL + note).
+/// Creating this row is what fires notifications to every subscriber.
+model RepostPost {
+  id              String              @id @default(cuid())
+  sourceAccountId String
+  sourceAccount   RepostSourceAccount @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
+  postUrl         String              @db.Text
+  note            String?             @db.Text
+  createdAt       DateTime            @default(now())
+
+  submissions RepostSubmission[]
+
+  @@index([sourceAccountId, createdAt(sort: Desc)])
+}
+
+/// A creator's proof that they reposted a given RepostPost. Required before
+/// admin issues a credit — gives the admin an audit trail to review.
+model RepostSubmission {
+  id             String                 @id @default(cuid())
+  repostPostId   String
+  repostPost     RepostPost             @relation(fields: [repostPostId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  repostUrl      String                 @db.Text
+  /// Self-reported by the creator — unverified, just a data point for admin.
+  reportedViews  Int?
+  status         RepostSubmissionStatus @default(PENDING)
+  adminNote      String?                @db.Text
+  createdAt      DateTime               @default(now())
+  reviewedAt     DateTime?
+
+  @@unique([repostPostId, employeeId])
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+/// Admin-issued credit into a creator's repost wallet. This is the ONLY way
+/// money enters the repost side — a discretionary judgment call (account size,
+/// growth, repost consistency), not a formula. Never touches the main
+/// upstream-derived balance.
+model RepostCredit {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(12, 2)
+  note       String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, createdAt(sort: Desc)])
+}
+
+/// Creator payout request drawn ONLY from the repost wallet
+/// (sum(RepostCredit) − sum(amountAtRequest of PAID requests)). Same
+/// REQUESTED → IN_PROGRESS → PAID/REJECTED workflow as the main PayoutRequest,
+/// but a fully separate table/balance so the two never mix.
+model RepostPayoutRequest {
+  id              String              @id @default(cuid())
+  employeeId      String
+  employee        Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  method          PayoutMethod
+  details         Json
+  amountAtRequest Decimal             @db.Decimal(12, 2)
+  status          RepostPayoutStatus  @default(REQUESTED)
+  notes           String?             @db.Text
+  amountPaid      Decimal?            @db.Decimal(12, 2)
+  penalty         Decimal?            @db.Decimal(12, 2)
+  adminNote       String?             @db.Text
+  createdAt       DateTime            @default(now())
+  inProgressAt    DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  rejectedAt      DateTime?
+
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
 }

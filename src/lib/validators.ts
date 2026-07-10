@@ -198,6 +198,21 @@ export const campaignOverrideBody = z.object({
   displayCap: z.coerce.number().min(0).max(999999).optional().nullable(),
 });
 
+// =============================================================
+// Reposting (creator-facing)
+// =============================================================
+
+export const repostSubscribeBody = z.object({
+  sourceAccountId: z.string().min(1).max(64),
+  subscribe: z.boolean(),
+});
+
+export const repostSubmissionBody = z.object({
+  repostPostId: z.string().min(1).max(64),
+  repostUrl: z.string().url().max(2048),
+  reportedViews: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+});
+
 export const dashFiltersSchema = z.object({
   status: z.string().default("all"),
   campaignName: z.string().default("all"),

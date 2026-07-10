@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 
 const ALL_PERMISSIONS = [
   { key: 'campaigns',       label: 'Campaigns & Rules' },
+  { key: 'reposting',       label: 'Reposting' },
   { key: 'creators',        label: 'Creator Signups & Allowlist' },
   { key: 'messages',        label: 'Messages & Support' },
   { key: 'payouts',         label: 'Payouts' },
