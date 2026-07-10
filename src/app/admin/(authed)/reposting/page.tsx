@@ -3,9 +3,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight, X, Repeat, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight, X, Repeat, Users, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
+import { RichTextEditor } from '@/components/rich-text-editor';
 import { api } from '@/lib/api-client';
 
 interface ListItem {
@@ -39,6 +41,7 @@ interface Detail {
 }
 
 export default function RepostCampaignsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [creating, setCreating] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -66,7 +69,13 @@ export default function RepostCampaignsPage() {
           <EditForm
             key="new"
             onClose={() => setCreating(false)}
-            onSaved={() => { setCreating(false); qc.invalidateQueries({ queryKey: ['admin', 'repost-campaigns'] }); }}
+            onSaved={(newId) => {
+              setCreating(false);
+              qc.invalidateQueries({ queryKey: ['admin', 'repost-campaigns'] });
+              // Land the admin straight on the "add accounts" screen — that's
+              // the very next thing they need to do after creating a program.
+              if (newId) router.push(`/admin/reposting/${newId}`);
+            }}
           />
         )}
 
@@ -188,10 +197,12 @@ const EMPTY_FORM = {
 };
 type FormState = typeof EMPTY_FORM;
 
-function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; onSaved: () => void }) {
+function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; onSaved: (newId?: string) => void }) {
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [loaded, setLoaded] = React.useState(!id);
   const [saving, setSaving] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!id) return;
@@ -212,6 +223,37 @@ function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; 
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  async function handleIconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setUploading(true);
+    try {
+      const sign = await fetch('/api/admin/repost/campaigns/sign-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type }),
+      }).then((r) => r.json());
+      if (!sign.uploadUrl) {
+        toast.error(sign.error || 'Could not start upload'); return;
+      }
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`)));
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+        xhr.open('PUT', sign.uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+      update('iconUrl', sign.publicUrl);
+      toast.success('Icon uploaded');
+    } catch (err) {
+      toast.error((err as Error)?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function save() {
     if (form.name.trim().length < 2) { toast.error('Name is required'); return; }
 
@@ -226,10 +268,15 @@ function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; 
         ordering: Number(form.ordering),
       };
 
-      if (id) await api.patch(`/api/admin/repost/campaigns/${id}`, body);
-      else    await api.post('/api/admin/repost/campaigns', body);
+      let newId: string | undefined;
+      if (id) {
+        await api.patch(`/api/admin/repost/campaigns/${id}`, body);
+      } else {
+        const created = await api.post<{ id: string; publicId: string }>('/api/admin/repost/campaigns', body);
+        newId = created.id;
+      }
       toast.success(id ? 'Updated' : 'Created');
-      onSaved();
+      onSaved(id ?? newId);
     } catch (err) {
       toast.error((err as Error)?.message || 'Failed');
     } finally {
@@ -260,8 +307,22 @@ function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; 
       </div>
 
       <div className="space-y-2">
-        <Label>Icon URL</Label>
-        <Input placeholder="https://…" value={form.iconUrl} onChange={(e) => update('iconUrl', e.target.value)} />
+        <Label>Icon</Label>
+        <div className="flex items-center gap-3">
+          {form.iconUrl ? (
+            <Image src={form.iconUrl} alt="" width={56} height={56} className="object-cover border bg-secondary rounded-lg" unoptimized />
+          ) : (
+            <div className="h-14 w-14 grid place-items-center border bg-secondary text-muted-foreground rounded-lg"><Repeat className="h-5 w-5" /></div>
+          )}
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" onChange={handleIconUpload} />
+          <Button variant="outline" size="sm" type="button" disabled={uploading} onClick={() => fileRef.current?.click()}>
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {uploading ? 'Uploading…' : 'Upload'}
+          </Button>
+          {form.iconUrl && (
+            <Button variant="ghost" size="sm" type="button" onClick={() => update('iconUrl', '')}>Clear</Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -273,11 +334,12 @@ function EditForm({ id, onClose, onSaved }: { id?: string; onClose: () => void; 
       </div>
 
       <div className="space-y-2">
-        <Label>Rules / brief (HTML — shown to creators)</Label>
-        <textarea
-          className="flex w-full min-h-[100px] rounded-none border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-foreground focus-visible:ring-0"
-          value={form.rulesHtml} onChange={(e) => update('rulesHtml', e.target.value)} maxLength={20_000}
-          placeholder="<p>Repost within 24 hours of the original post…</p>"
+        <Label>Rules / brief (shown to creators)</Label>
+        <RichTextEditor
+          content={form.rulesHtml}
+          onChange={(html) => update('rulesHtml', html)}
+          placeholder="Repost within 24 hours of the original post…"
+          disabled={saving}
         />
       </div>
 
