@@ -1,9 +1,9 @@
 // POST /api/admin/messages/[employeeId]/upload
-// Admin uploads an image to Supabase Storage for support chat.
+// Admin uploads an image to R2 Storage for support chat.
 
 import { NextRequest } from 'next/server';
 import { withAdmin, fail, ok } from '@/lib/api';
-import { uploadFile } from '@/lib/supabase';
+import { uploadFile } from '@/lib/storage';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';

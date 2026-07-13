@@ -1,9 +1,9 @@
 // POST /api/admin/homepage-videos/sign
-// Returns a Supabase signed upload URL so the browser can PUT the video
-// directly to Supabase — bypasses Next.js body size limits entirely.
+// Returns a presigned upload URL so the browser can PUT the video
+// directly to R2 — bypasses Next.js body size limits entirely.
 
 import { withAdmin, ok, fail } from '@/lib/api';
-import { createSignedUploadUrl } from '@/lib/supabase';
+import { createSignedUploadUrl } from '@/lib/storage';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';

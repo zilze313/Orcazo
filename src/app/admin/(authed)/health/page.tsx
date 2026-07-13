@@ -21,7 +21,7 @@ interface HealthResp {
   cache: { hits: number; misses: number; entries: number };
   services: {
     database: ServiceStatus;
-    supabase: ServiceStatus & { bucket: string };
+    storage: ServiceStatus & { bucket: string };
     resend: ServiceStatus & { configured: boolean };
   };
   stats: {
@@ -139,10 +139,10 @@ export default function HealthPage() {
                 />
                 <ServiceCard
                   icon={Cloud}
-                  name="Supabase Storage"
-                  status={data?.services.supabase}
-                  extra={data?.services.supabase && (
-                    <p className="text-xs text-muted-foreground">Bucket: <span className="font-mono">{data.services.supabase.bucket}</span></p>
+                  name="R2 Storage"
+                  status={data?.services.storage}
+                  extra={data?.services.storage && (
+                    <p className="text-xs text-muted-foreground">Bucket: <span className="font-mono">{data.services.storage.bucket}</span></p>
                   )}
                 />
                 <ServiceCard

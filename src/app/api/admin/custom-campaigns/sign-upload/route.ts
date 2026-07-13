@@ -1,9 +1,9 @@
 // POST /api/admin/custom-campaigns/sign-upload
-// Returns a Supabase signed upload URL so the browser can PUT the campaign
+// Returns a presigned upload URL so the browser can PUT the campaign
 // icon directly (bypasses Next.js body size limits, no proxy bandwidth cost).
 
 import { withAdmin, ok, fail } from '@/lib/api';
-import { createSignedUploadUrl } from '@/lib/supabase';
+import { createSignedUploadUrl } from '@/lib/storage';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';

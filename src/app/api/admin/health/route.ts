@@ -3,7 +3,7 @@
 
 import { withAdmin, ok } from '@/lib/api';
 import { db } from '@/lib/db';
-import { checkHealth as checkSupabase } from '@/lib/supabase';
+import { checkHealth as checkStorage } from '@/lib/storage';
 import { cacheStats } from '@/lib/cache';
 
 export const runtime = 'nodejs';
@@ -49,9 +49,9 @@ async function getDbStats() {
 }
 
 export const GET = withAdmin(async () => {
-  const [database, supabase, resend, dbStats] = await Promise.all([
+  const [database, storage, resend, dbStats] = await Promise.all([
     checkDatabase(),
-    checkSupabase(),
+    checkStorage(),
     checkResend(),
     getDbStats(),
   ]);
@@ -61,7 +61,7 @@ export const GET = withAdmin(async () => {
     cache: cacheStats(),
     services: {
       database,
-      supabase: { ...supabase, bucket: process.env.SUPABASE_BUCKET || 'media' },
+      storage: { ...storage, bucket: process.env.R2_BUCKET || 'orcazo-media' },
       resend,
     },
     stats: dbStats,
