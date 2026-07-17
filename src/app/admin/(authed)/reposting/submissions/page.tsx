@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ListChecks, CheckCircle2, Clock, Loader2, ExternalLink } from 'lucide-react';
+import { ListChecks, CheckCircle2, Clock, Loader2, ExternalLink, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,9 @@ interface SubmissionRow {
   id: string;
   repostUrl: string;
   reportedViews: number | null;
-  status: 'PENDING' | 'REVIEWED';
+  followers: number | null;
+  status: 'PENDING' | 'REVIEWED' | 'APPROVED' | 'REJECTED';
+  bountyPaid: number | null;
   adminNote: string | null;
   createdAt: string;
   employee: { id: string; email: string; firstName: string | null; lastName: string | null };
@@ -36,7 +38,7 @@ export default function RepostSubmissionsPage() {
   const router = useRouter();
   const params = useSearchParams();
   const qc = useQueryClient();
-  const status = (params.get('status') as 'all' | 'PENDING' | 'REVIEWED') ?? 'PENDING';
+  const status = (params.get('status') as 'all' | 'PENDING' | 'REVIEWED' | 'APPROVED' | 'REJECTED') ?? 'PENDING';
   const page = Math.max(1, parseInt(params.get('page') || '1', 10));
 
   const list = useQuery<ListResp>({
@@ -54,11 +56,11 @@ export default function RepostSubmissionsPage() {
 
   const [reviewingId, setReviewingId] = React.useState<string | null>(null);
 
-  async function markReviewed(id: string, adminNote: string) {
+  async function review(id: string, body: Record<string, unknown>, success: string) {
     setReviewingId(id);
     try {
-      await api.patch(`/api/admin/repost/submissions/${id}`, { adminNote: adminNote || null });
-      toast.success('Marked reviewed');
+      await api.patch(`/api/admin/repost/submissions/${id}`, body);
+      toast.success(success);
       qc.invalidateQueries({ queryKey: ['admin', 'repost-submissions'] });
     } catch (e) {
       toast.error((e as Error)?.message || 'Failed');
@@ -71,14 +73,16 @@ export default function RepostSubmissionsPage() {
     <>
       <PageHeader
         title="Repost Submissions"
-        description="Creators' proof of reposting. Reviewing doesn't move money — issue a credit separately once you've judged the account."
+        description="Creators' proof of reposting. Approving credits the tier bounty (based on their follower count) straight to their repost wallet — override the amount if needed."
         actions={
           <div className="w-40">
             <Select value={status} onValueChange={(v) => setUrlParam('status', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="REVIEWED">Reviewed</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
+                <SelectItem value="REVIEWED">Reviewed (legacy)</SelectItem>
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
@@ -94,7 +98,7 @@ export default function RepostSubmissionsPage() {
         ) : (
           <div className="space-y-2">
             {list.data!.items.map((s) => (
-              <SubmissionCard key={s.id} row={s} onReview={markReviewed} reviewing={reviewingId === s.id} />
+              <SubmissionCard key={s.id} row={s} onReview={review} reviewing={reviewingId === s.id} />
             ))}
           </div>
         )}
@@ -113,14 +117,24 @@ export default function RepostSubmissionsPage() {
   );
 }
 
+function statusBadge(status: SubmissionRow['status']) {
+  switch (status) {
+    case 'APPROVED': return <Badge variant="success" className="gap-1 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5" /> Approved</Badge>;
+    case 'REJECTED': return <Badge variant="destructive" className="gap-1 text-[10px]"><XCircle className="h-2.5 w-2.5" /> Rejected</Badge>;
+    case 'REVIEWED': return <Badge variant="secondary" className="gap-1 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5" /> Reviewed</Badge>;
+    default:         return <Badge variant="warning" className="gap-1 text-[10px]"><Clock className="h-2.5 w-2.5" /> Pending</Badge>;
+  }
+}
+
 function SubmissionCard({
   row, onReview, reviewing,
 }: {
   row: SubmissionRow;
-  onReview: (id: string, note: string) => void;
+  onReview: (id: string, body: Record<string, unknown>, success: string) => void;
   reviewing: boolean;
 }) {
   const [note, setNote] = React.useState(row.adminNote ?? '');
+  const [bounty, setBounty] = React.useState('');
   const name = row.employee.firstName || row.employee.email.split('@')[0];
 
   return (
@@ -131,9 +145,12 @@ function SubmissionCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{name}</span>
             <span className="text-xs text-muted-foreground">{row.employee.email}</span>
-            {row.status === 'REVIEWED'
-              ? <Badge variant="success" className="gap-1 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5" /> Reviewed</Badge>
-              : <Badge variant="warning" className="gap-1 text-[10px]"><Clock className="h-2.5 w-2.5" /> Pending</Badge>}
+            {statusBadge(row.status)}
+            {row.bountyPaid != null && (
+              <span className="text-xs font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                ${row.bountyPaid.toFixed(2)}
+              </span>
+            )}
           </div>
           <div className="text-xs text-muted-foreground mt-1">{row.post.account.label} · {formatRelative(row.createdAt)}</div>
           <div className="mt-2 space-y-1">
@@ -144,27 +161,51 @@ function SubmissionCard({
               <ExternalLink className="h-3 w-3 flex-shrink-0" /> Their repost: {row.repostUrl}
             </a>
           </div>
-          {row.reportedViews != null && (
-            <div className="text-xs text-muted-foreground mt-1">Self-reported views: {row.reportedViews.toLocaleString()}</div>
-          )}
+          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+            {row.reportedViews != null && <span>Self-reported views: {row.reportedViews.toLocaleString()}</span>}
+            {row.followers != null && <span>Followers: {row.followers.toLocaleString()} (self-reported)</span>}
+          </div>
         </div>
       </div>
 
       {row.status === 'PENDING' && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
           <input
-            className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Optional note (visible to you only)"
+            className="flex-1 min-w-[180px] h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Optional note (shown to the creator on reject)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <Button size="sm" onClick={() => onReview(row.id, note)} disabled={reviewing}>
+          <input
+            className="w-24 h-9 rounded-md border border-input bg-background px-3 text-xs tabular-nums placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="number" min="0" step="0.01"
+            placeholder="Auto $"
+            title="Leave empty to use the tier bounty for their follower count"
+            value={bounty}
+            onChange={(e) => setBounty(e.target.value)}
+          />
+          <Button
+            size="sm"
+            onClick={() => onReview(
+              row.id,
+              { action: 'approve', ...(bounty.trim() ? { bounty: parseFloat(bounty) } : {}), adminNote: note || null },
+              'Approved — bounty credited',
+            )}
+            disabled={reviewing}
+          >
             {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            Mark reviewed
+            Approve
+          </Button>
+          <Button
+            size="sm" variant="destructive"
+            onClick={() => onReview(row.id, { action: 'reject', adminNote: note || null }, 'Rejected')}
+            disabled={reviewing}
+          >
+            <XCircle className="h-3.5 w-3.5" /> Reject
           </Button>
         </div>
       )}
-      {row.status === 'REVIEWED' && row.adminNote && (
+      {row.status !== 'PENDING' && row.adminNote && (
         <p className="mt-2 text-xs text-muted-foreground italic">{row.adminNote}</p>
       )}
     </Card>

@@ -202,6 +202,62 @@ export function creatorApprovalEmail(opts: { fullName: string; loginUrl: string 
   };
 }
 
+export function payoutApprovedEmail(opts: { displayName: string; amount?: number }): { subject: string; html: string } {
+  const { displayName, amount } = opts;
+  const amountStr = amount != null ? `$${amount.toFixed(2)}` : null;
+  return {
+    subject: amountStr
+      ? `${amountStr} payout approved — congratulations! 🎉`
+      : 'Your withdrawal request has been approved ✅',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 16px;">Congratulations, ${escapeHtml(displayName)}! 🎉</h1>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+          Your withdrawal request has been <strong style="color: #16a34a;">approved</strong> and is now being processed.
+        </p>
+        ${amountStr ? `
+        <div style="margin: 20px 0; padding: 22px; border-radius: 10px; background: #111; text-align: center;">
+          <div style="font-size: 11px; color: #ffffffb3; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 6px;">Payout approved</div>
+          <div style="font-size: 36px; font-weight: 700; color: #4ade80; font-variant-numeric: tabular-nums;">${amountStr}</div>
+        </div>` : ''}
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+          Please allow a few business days for the funds to arrive. If you have any questions, feel free to reach out via the Support chat in your dashboard.
+        </p>
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
+      </div>
+    `.trim(),
+  };
+}
+
+export function payoutRejectedEmail(opts: { displayName: string; reason: string }): { subject: string; html: string } {
+  const { displayName, reason } = opts;
+  return {
+    subject: 'Your withdrawal request was rejected',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #111;">
+        <div style="text-align:center; margin-bottom: 24px;">
+          <div style="display:inline-block; padding: 8px 14px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; letter-spacing: 0.04em;">Orcazo</div>
+        </div>
+        <h1 style="font-size: 20px; margin: 0 0 16px;">Hi ${escapeHtml(displayName)},</h1>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+          Unfortunately your withdrawal request was rejected.
+        </p>
+        <div style="margin: 16px 0; padding: 14px 16px; border-left: 3px solid #dc2626; background: #fef2f2; border-radius: 6px;">
+          <div style="font-size: 12px; color: #991b1b; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 4px;">Reason</div>
+          <div style="font-size: 14px; line-height: 1.5;">${escapeHtml(reason)}</div>
+        </div>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+          Your balance was not deducted. If you believe this is a mistake, reach out via the Support chat in your dashboard.
+        </p>
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 24px 0 0;">— The Orcazo team</p>
+      </div>
+    `.trim(),
+  };
+}
+
 
 /**
  * Generic admin-to-creator direct email. The admin types a heading and a

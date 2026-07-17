@@ -3,49 +3,54 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
+  /* .theme-light forces the light palette on marketing pages regardless of
+     the dashboard's next-themes class on <html> — custom properties resolve
+     from the nearest ancestor, so the wrapper wins. */
+  :root,
+  .theme-light {
+    /* Warm cream base + orange brand, Content Rewards-style */
+    --background: 34 23% 96%;
+    --foreground: 0 0% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 0 0% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 220 9% 11%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 9% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 14% 94%;
-    --accent-foreground: 220 9% 11%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 22 100% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 14% 92%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 30 14% 92%;
+    --muted-foreground: 25 5% 42%;
+    --accent: 27 60% 93%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 220 9% 11%;
-    --radius: 0.5rem;
+    --border: 30 12% 88%;
+    --input: 30 12% 86%;
+    --ring: 22 100% 51%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 6%;
-    --card-foreground: 213 31% 91%;
-    --popover: 224 71% 6%;
-    --popover-foreground: 213 31% 91%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 224 71% 4%;
-    --secondary: 222 47% 11%;
-    --secondary-foreground: 213 31% 91%;
-    --muted: 222 47% 11%;
-    --muted-foreground: 215 16% 57%;
-    --accent: 222 47% 13%;
-    --accent-foreground: 213 31% 91%;
+    --background: 24 12% 5%;
+    --foreground: 30 12% 92%;
+    --card: 24 10% 8%;
+    --card-foreground: 30 12% 92%;
+    --popover: 24 10% 8%;
+    --popover-foreground: 30 12% 92%;
+    --primary: 22 100% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 8% 13%;
+    --secondary-foreground: 30 12% 92%;
+    --muted: 24 8% 13%;
+    --muted-foreground: 27 6% 60%;
+    --accent: 24 10% 15%;
+    --accent-foreground: 30 12% 92%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 222 47% 13%;
-    --input: 222 47% 13%;
-    --ring: 213 31% 91%;
+    --border: 24 8% 15%;
+    --input: 24 8% 15%;
+    --ring: 22 100% 54%;
   }
 }
 
@@ -57,15 +62,33 @@
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
 }
 
 @layer utilities {
+  /* Big display headlines — heavy weight, tight tracking */
+  .text-display {
+    @apply font-extrabold tracking-[-0.045em] leading-[1.05];
+  }
+
+  /* Warm peach glow used behind heroes */
+  .bg-hero-glow {
+    background:
+      radial-gradient(1200px 500px at 50% -10%, hsl(26 100% 88% / 0.9), transparent 70%),
+      radial-gradient(900px 400px at 85% 0%, hsl(20 100% 90% / 0.7), transparent 65%);
+  }
+
   @keyframes marquee {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
   }
   .animate-marquee {
     animation: marquee 35s linear infinite;
+  }
+  .animate-marquee-fast {
+    animation: marquee 18s linear infinite;
   }
 
   /* ── Floating metric cards ────────────────────────────────────── */

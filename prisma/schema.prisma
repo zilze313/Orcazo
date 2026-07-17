@@ -50,7 +50,18 @@ enum ReferralClaimStatus {
 
 enum RepostSubmissionStatus {
   PENDING
+  /// Legacy "looked at it" status from before approve/reject existed.
   REVIEWED
+  APPROVED
+  REJECTED
+}
+
+enum RepostCollabStatus {
+  REQUESTED
+  INVITED
+  ACCEPTED
+  APPROVED
+  REJECTED
 }
 
 enum RepostPayoutStatus {
@@ -62,23 +73,23 @@ enum RepostPayoutStatus {
 }
 
 model Allowlist {
-  id                  String   @id @default(cuid())
+  id               String    @id @default(cuid())
   // Public-facing email — what the creator types at /login.
   // (Column name kept as `email` to avoid destructive rename; treated as publicEmail in code.)
-  email               String   @unique
+  email            String    @unique
   // The email actually registered on AffiliateNetwork. Nullable until admin connects it.
-  proxyEmail          String?
-  proxyConnectedAt    DateTime?
-  note                String?
-  createdAt           DateTime @default(now())
-  createdBy           String?
-  createdByAdmin      Admin?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  proxyEmail       String?
+  proxyConnectedAt DateTime?
+  note             String?
+  createdAt        DateTime  @default(now())
+  createdBy        String?
+  createdByAdmin   Admin?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
   // OTP automation: each proxy Gmail forwards to this address (e.g. alice@orcazo.com).
   // Cloudflare Email Worker catches it, POSTs to /api/inbound-email, and we store the code here.
-  inboundAddress      String?   // set by admin; must be unique per creator
-  pendingOtp          String?   // latest OTP extracted from an inbound email
-  pendingOtpAt        DateTime? // when the OTP arrived (used for TTL checks)
+  inboundAddress String? // set by admin; must be unique per creator
+  pendingOtp     String? // latest OTP extracted from an inbound email
+  pendingOtpAt   DateTime? // when the OTP arrived (used for TTL checks)
 
   // Idle-proxy reclamation: set when we email the creator a "log in or lose access"
   // warning. The reclaim cron detaches the proxy 48h later if they're still idle.
@@ -102,15 +113,15 @@ model ManagedEmail {
 }
 
 model Employee {
-  id                       String              @id @default(cuid())
-  email                    String              @unique  // public email
+  id                       String    @id @default(cuid())
+  email                    String    @unique // public email
   affiliateNetworkToken    String
-  affiliateNetworkCookies  String?             @db.Text
+  affiliateNetworkCookies  String?   @db.Text
   affiliateNetworkPublicId String?
   firstName                String?
   lastName                 String?
   bioVerificationCode      String?
-  cachedBalance            Decimal?            @db.Decimal(12, 2)
+  cachedBalance            Decimal?  @db.Decimal(12, 2)
   /// Most recent dashboard summary, cached so admin views + payout gates don't
   /// need a live upstream call. These store the REAL (un-multiplied),
   /// baseline-adjusted figures — i.e. only money made after the proxy was
@@ -118,40 +129,41 @@ model Employee {
   ///   cachedWaitingPayment = upstream waitingPayment − baseline   (approved, in transit)
   ///   cachedWaitingReview  = upstream waitingReview  − baseline   (pending approval)
   ///   cachedPaid           = upstream totalPaid      − baseline   (settled to admin)
-  cachedWaitingPayment     Decimal?            @db.Decimal(12, 2)
-  cachedWaitingReview      Decimal?            @db.Decimal(12, 2)
-  cachedPaid               Decimal?            @db.Decimal(12, 2)
+  cachedWaitingPayment     Decimal?  @db.Decimal(12, 2)
+  cachedWaitingReview      Decimal?  @db.Decimal(12, 2)
+  cachedPaid               Decimal?  @db.Decimal(12, 2)
   cachedSummaryAt          DateTime?
   /// Raw upstream totals captured the first time this creator loads their
   /// dashboard.  Used to zero-out pre-connection history so creators only see
   /// activity from the day their account was connected.
-  baselineTotalPaid        Decimal?            @db.Decimal(14, 4)
-  baselineWaitingPayment   Decimal?            @db.Decimal(14, 4)
-  baselineWaitingReview    Decimal?            @db.Decimal(14, 4)
+  baselineTotalPaid        Decimal?  @db.Decimal(14, 4)
+  baselineWaitingPayment   Decimal?  @db.Decimal(14, 4)
+  baselineWaitingReview    Decimal?  @db.Decimal(14, 4)
   baselineCapturedAt       DateTime?
   lastLoginAt              DateTime?
   lastSyncedAt             DateTime?
-  createdAt                DateTime            @default(now())
+  createdAt                DateTime  @default(now())
   /// When true, the baseline isolation is bypassed: the creator sees all
   /// historical submissions and earnings, including pre-connection history.
-  showFullHistory          Boolean             @default(false)
+  showFullHistory          Boolean   @default(false)
   /// JSON array of social-account publicIds that existed on the upstream
   /// account when the creator first loaded their dashboard (baseline capture).
   /// These are hidden from the creator unless showFullHistory is enabled.
   baselineSocialIds        String?
-  adminNotes               String?             @db.Text
+  adminNotes               String?   @db.Text
 
-  sessions        Session[]
-  submissions     SubmissionAudit[]
-  payouts         PayoutRequest[]
-  messages        ChatMessage[]
-  referralClaims  ReferralClaim[]
+  sessions                   Session[]
+  submissions                SubmissionAudit[]
+  payouts                    PayoutRequest[]
+  messages                   ChatMessage[]
+  referralClaims             ReferralClaim[]
   customCampaignApplications CustomCampaignApplication[]
-  notifications          Notification[]
-  repostSubscriptions     RepostSubscription[]
-  repostSubmissions       RepostSubmission[]
-  repostCredits           RepostCredit[]
-  repostPayoutRequests    RepostPayoutRequest[]
+  notifications              Notification[]
+  repostSubscriptions        RepostSubscription[]
+  repostSubmissions          RepostSubmission[]
+  repostCredits              RepostCredit[]
+  repostPayoutRequests       RepostPayoutRequest[]
+  repostCollabRequests       RepostCollabRequest[]
 
   @@index([email])
   @@index([lastLoginAt(sort: Desc)])
@@ -174,14 +186,14 @@ model Session {
 }
 
 model Admin {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  passwordHash String
-  role         AdminRole      @default(ADMIN)
+  id               String         @id @default(cuid())
+  email            String         @unique
+  passwordHash     String
+  role             AdminRole      @default(ADMIN)
   /// JSON array of permission strings. SUPER_ADMIN ignores this field (has all permissions).
-  permissions  Json           @default("[]")
-  createdAt    DateTime       @default(now())
-  sessions     AdminSession[]
+  permissions      Json           @default("[]")
+  createdAt        DateTime       @default(now())
+  sessions         AdminSession[]
   allowlistEntries Allowlist[]
 }
 
@@ -197,16 +209,16 @@ model AdminSession {
 }
 
 model SubmissionAudit {
-  id                String   @id @default(cuid())
-  employeeId        String
-  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  campaignPublicId  String
-  campaignName      String
-  linkSubmitted     String   @db.Text
-  upstreamStatus    Int
-  upstreamSuccess   Boolean
-  upstreamMessage   String?  @db.Text
-  createdAt         DateTime @default(now())
+  id               String   @id @default(cuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  campaignPublicId String
+  campaignName     String
+  linkSubmitted    String   @db.Text
+  upstreamStatus   Int
+  upstreamSuccess  Boolean
+  upstreamMessage  String?  @db.Text
+  createdAt        DateTime @default(now())
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([campaignPublicId])
@@ -239,26 +251,25 @@ model ReferralCode {
 /// Creator self-signup requests submitted from the public marketing site.
 /// On approval, an Allowlist row is created and a ManagedEmail is bound to it.
 model CreatorSignupRequest {
-  id                   String       @id @default(cuid())
-  publicEmail          String       @unique  // dedupes; one request per email
-  fullName             String
-  whatsapp             String
+  id                  String       @id @default(cuid())
+  publicEmail         String       @unique // dedupes; one request per email
+  fullName            String
+  whatsapp            String
   /// Array of { platform: 'tiktok'|'instagram'|..., handle: string }
-  socialAccounts       Json
-  status               SignupStatus @default(PENDING)
-  rejectionReason      String?
-  connectedProxyEmail  String?      // set when approved
-  referralCode         String?      // optional code entered at signup
-  createdAt            DateTime     @default(now())
-  reviewedAt           DateTime?
-  reviewedBy           String?
-  ipAddress            String?
+  socialAccounts      Json
+  status              SignupStatus @default(PENDING)
+  rejectionReason     String?
+  connectedProxyEmail String? // set when approved
+  referralCode        String? // optional code entered at signup
+  createdAt           DateTime     @default(now())
+  reviewedAt          DateTime?
+  reviewedBy          String?
+  ipAddress           String?
 
   @@index([status, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@index([publicEmail])
 }
-
 
 /// A login-code relay request. Created when a creator hits /api/auth/send-code.
 /// Admin sees it, retrieves the OTP from the proxy inbox, pastes it here and
@@ -268,7 +279,7 @@ model LoginRequest {
   id          String    @id @default(cuid())
   publicEmail String
   proxyEmail  String
-  status      String    @default("PENDING")  // PENDING | RELAYED | EXPIRED
+  status      String    @default("PENDING") // PENDING | RELAYED | EXPIRED
   createdAt   DateTime  @default(now())
   relayedAt   DateTime?
 
@@ -326,6 +337,9 @@ model PayoutRequest {
   createdAt       DateTime     @default(now())
   inProgressAt    DateTime?
   paidAt          DateTime?
+  /// When the creator saw (or dismissed) the payout-approved celebration
+  /// card. Null on a PAID payout means the celebration is still pending.
+  celebratedAt    DateTime?
   cancelledAt     DateTime?
   rejectedAt      DateTime?
 
@@ -381,22 +395,22 @@ model CampaignOverride {
 /// fromAdmin=false → creator sent it; fromAdmin=true → admin sent it.
 /// readAt is set by the receiving party when they open the conversation.
 model ChatMessage {
-  id         String    @id @default(cuid())
-  employeeId String
-  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  fromAdmin  Boolean   @default(false)
-  content    String    @db.Text
+  id                String    @id @default(cuid())
+  employeeId        String
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  fromAdmin         Boolean   @default(false)
+  content           String    @db.Text
   /// Supabase Storage public URL for an attached image.
-  mediaUrl   String?   @db.Text
+  mediaUrl          String?   @db.Text
   /// MIME type of the attached media (e.g. "image/jpeg").
-  mediaType  String?
-  readAt     DateTime?
+  mediaType         String?
+  readAt            DateTime?
   /// For admin → creator messages: when the unread notification email becomes due
   /// (set to createdAt + 5 minutes on send). null = no notification scheduled.
   notifyEmailAt     DateTime?
   /// Set when we actually send the unread-message email — idempotency guard.
   notifyEmailSentAt DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt         DateTime  @default(now())
 
   @@index([employeeId, createdAt(sort: Asc)])
   @@index([fromAdmin, readAt])
@@ -428,19 +442,19 @@ model AdminSetting {
 
 /// A creator's claim for their referral reward once the threshold is met.
 model ReferralClaim {
-  id           String              @id @default(cuid())
-  employeeId   String
-  employee     Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  status       ReferralClaimStatus @default(PENDING)
+  id            String              @id @default(cuid())
+  employeeId    String
+  employee      Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  status        ReferralClaimStatus @default(PENDING)
   /// Referral count at time of claim
   referralCount Int
   /// Threshold that was active at time of claim
-  threshold    Int
+  threshold     Int
   /// Reward amount configured at time of claim
-  rewardAmount Decimal             @db.Decimal(12, 2)
-  adminNote    String?             @db.Text
-  createdAt    DateTime            @default(now())
-  resolvedAt   DateTime?
+  rewardAmount  Decimal             @db.Decimal(12, 2)
+  adminNote     String?             @db.Text
+  createdAt     DateTime            @default(now())
+  resolvedAt    DateTime?
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -451,18 +465,18 @@ model ReferralClaim {
 /// the admin panel so the admin can click confirmation links without digging
 /// through Vercel logs.
 model InboundMailEvent {
-  id           String    @id @default(cuid())
+  id          String    @id @default(cuid())
   /// Inbound address the email was sent to (e.g. alice@orcazo.com)
-  to           String
-  fromAddress  String?
-  subject      String?
+  to          String
+  fromAddress String?
+  subject     String?
   /// Gmail forwarding-confirmation URL if one was found in the body
-  confirmUrl   String?   @db.Text
+  confirmUrl  String?   @db.Text
   /// ~1KB readable preview of the decoded email body
-  bodySnippet  String?   @db.Text
+  bodySnippet String?   @db.Text
   /// Set when admin clicks dismiss. Auto-purged after 30 days regardless of state.
-  dismissedAt  DateTime?
-  createdAt    DateTime  @default(now())
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([dismissedAt, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
@@ -642,12 +656,12 @@ model RepostSourceAccount {
 /// A creator "following" an admin source account. Instant, no approval — the
 /// creator toggles this on/off freely.
 model RepostSubscription {
-  id             String              @id @default(cuid())
-  employeeId     String
-  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id              String              @id @default(cuid())
+  employeeId      String
+  employee        Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   sourceAccountId String
-  sourceAccount  RepostSourceAccount @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
-  createdAt      DateTime            @default(now())
+  sourceAccount   RepostSourceAccount @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
+  createdAt       DateTime            @default(now())
 
   @@unique([employeeId, sourceAccountId])
   @@index([sourceAccountId])
@@ -662,9 +676,16 @@ model RepostPost {
   sourceAccount   RepostSourceAccount @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
   postUrl         String              @db.Text
   note            String?             @db.Text
+  /// Which actions creators can take on this post.
+  allowRepost     Boolean             @default(true)
+  allowCollab     Boolean             @default(false)
+  /// Instagram caps collaborators per post (currently 5 invitees) — this is
+  /// the number of collab requests that can be accepted for this post.
+  collabSlots     Int                 @default(5)
   createdAt       DateTime            @default(now())
 
-  submissions RepostSubmission[]
+  submissions    RepostSubmission[]
+  collabRequests RepostCollabRequest[]
 
   @@index([sourceAccountId, createdAt(sort: Desc)])
 }
@@ -672,22 +693,70 @@ model RepostPost {
 /// A creator's proof that they reposted a given RepostPost. Required before
 /// admin issues a credit — gives the admin an audit trail to review.
 model RepostSubmission {
-  id             String                 @id @default(cuid())
-  repostPostId   String
-  repostPost     RepostPost             @relation(fields: [repostPostId], references: [id], onDelete: Cascade)
-  employeeId     String
-  employee       Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  repostUrl      String                 @db.Text
+  id            String                 @id @default(cuid())
+  repostPostId  String
+  repostPost    RepostPost             @relation(fields: [repostPostId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  repostUrl     String                 @db.Text
   /// Self-reported by the creator — unverified, just a data point for admin.
-  reportedViews  Int?
-  status         RepostSubmissionStatus @default(PENDING)
-  adminNote      String?                @db.Text
-  createdAt      DateTime               @default(now())
-  reviewedAt     DateTime?
+  reportedViews Int?
+  /// Self-reported follower count of the account that reposted — used to
+  /// resolve the bounty tier; admin eyeballs it against the linked account.
+  followers     Int?
+  status        RepostSubmissionStatus @default(PENDING)
+  /// Bounty credited on approval (tier-resolved, admin-adjustable).
+  bountyPaid    Decimal?               @db.Decimal(12, 2)
+  adminNote     String?                @db.Text
+  createdAt     DateTime               @default(now())
+  reviewedAt    DateTime?
 
   @@unique([repostPostId, employeeId])
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+}
+
+/// Admin-configurable bounty tiers by follower count. The applicable tier is
+/// the highest minFollowers that is <= the creator's follower count.
+model RepostBountyTier {
+  id           String   @id @default(cuid())
+  minFollowers Int
+  repostBounty Decimal  @db.Decimal(12, 2)
+  collabBounty Decimal  @db.Decimal(12, 2)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([active, minFollowers])
+}
+
+/// A creator asking to be added as a collaborator on an admin post
+/// (Instagram collab / equivalent). Flow:
+/// REQUESTED → admin sends the invite from the platform app → INVITED →
+/// creator accepts it in-app → ACCEPTED → admin verifies + credits → APPROVED.
+model RepostCollabRequest {
+  id           String             @id @default(cuid())
+  repostPostId String
+  repostPost   RepostPost         @relation(fields: [repostPostId], references: [id], onDelete: Cascade)
+  employeeId   String
+  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  platform     String?            @db.VarChar(40)
+  /// The creator's handle the admin should send the collab invite to.
+  handle       String             @db.VarChar(120)
+  /// Self-reported follower count — used to resolve the bounty tier.
+  followers    Int?
+  status       RepostCollabStatus @default(REQUESTED)
+  /// Bounty credited on approval (tier-resolved, admin-adjustable).
+  bountyPaid   Decimal?           @db.Decimal(12, 2)
+  adminNote    String?            @db.Text
+  createdAt    DateTime           @default(now())
+  invitedAt    DateTime?
+  acceptedAt   DateTime?
+  reviewedAt   DateTime?
+
+  @@unique([repostPostId, employeeId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([employeeId, createdAt(sort: Desc)])
 }
 
 /// Admin-issued credit into a creator's repost wallet. This is the ONLY way
@@ -710,18 +779,18 @@ model RepostCredit {
 /// REQUESTED → IN_PROGRESS → PAID/REJECTED workflow as the main PayoutRequest,
 /// but a fully separate table/balance so the two never mix.
 model RepostPayoutRequest {
-  id              String              @id @default(cuid())
+  id              String             @id @default(cuid())
   employeeId      String
-  employee        Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee        Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   method          PayoutMethod
   details         Json
-  amountAtRequest Decimal             @db.Decimal(12, 2)
-  status          RepostPayoutStatus  @default(REQUESTED)
-  notes           String?             @db.Text
-  amountPaid      Decimal?            @db.Decimal(12, 2)
-  penalty         Decimal?            @db.Decimal(12, 2)
-  adminNote       String?             @db.Text
-  createdAt       DateTime            @default(now())
+  amountAtRequest Decimal            @db.Decimal(12, 2)
+  status          RepostPayoutStatus @default(REQUESTED)
+  notes           String?            @db.Text
+  amountPaid      Decimal?           @db.Decimal(12, 2)
+  penalty         Decimal?           @db.Decimal(12, 2)
+  adminNote       String?            @db.Text
+  createdAt       DateTime           @default(now())
   inProgressAt    DateTime?
   paidAt          DateTime?
   cancelledAt     DateTime?
@@ -729,4 +798,56 @@ model RepostPayoutRequest {
 
   @@index([employeeId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+}
+
+/// A "featured payout" card shown in the homepage marquee. Fully
+/// admin-curated — nothing here links back to a real employee, so no PII
+/// can leak through the public endpoint.
+model ShowcasePayout {
+  id          String   @id @default(cuid())
+  displayName String   @db.VarChar(80)
+  handle      String?  @db.VarChar(80)
+  platform    String?  @db.VarChar(40)
+  amount      Decimal  @db.Decimal(12, 2)
+  note        String?  @db.VarChar(160)
+  /// Free-text label like "March 2026" — admin controls exactly what's shown.
+  paidLabel   String?  @db.VarChar(40)
+  active      Boolean  @default(true)
+  ordering    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, ordering])
+}
+
+enum BrandRequestStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+/// Inbound "launch a campaign" request from a brand — public form, reviewed
+/// in the admin panel. This is a lead, not an account.
+model BrandCampaignRequest {
+  id           String             @id @default(cuid())
+  brandName    String             @db.VarChar(120)
+  contactName  String             @db.VarChar(120)
+  email        String             @db.VarChar(254)
+  website      String?            @db.VarChar(300)
+  campaignName String             @db.VarChar(160)
+  /// Budget bracket in USD as picked on the form (e.g. "5000-10000").
+  budget       String             @db.VarChar(40)
+  /// Array of platform slugs the brand wants, e.g. ["tiktok","instagram"].
+  platforms    Json?
+  description  String?            @db.Text
+  status       BrandRequestStatus @default(NEW)
+  adminNote    String?            @db.Text
+  ipAddress    String?            @db.VarChar(64)
+  userAgent    String?            @db.Text
+  createdAt    DateTime           @default(now())
+  contactedAt  DateTime?
+  closedAt     DateTime?
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
 }

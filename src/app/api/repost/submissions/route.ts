@@ -27,7 +27,9 @@ export const GET = withEmployee(async ({ session }) => {
       id: s.id,
       repostUrl: s.repostUrl,
       reportedViews: s.reportedViews,
+      followers: s.followers,
       status: s.status,
+      bountyPaid: s.bountyPaid != null ? parseFloat(String(s.bountyPaid)) : null,
       adminNote: s.adminNote,
       createdAt: s.createdAt,
       post: {
@@ -44,13 +46,14 @@ export const GET = withEmployee(async ({ session }) => {
 export const POST = withEmployee(async ({ req, session }) => {
   const parsed = await parseBody(req, repostSubmissionBody);
   if ('errorResponse' in parsed) return parsed.errorResponse;
-  const { repostPostId, repostUrl, reportedViews } = parsed.data;
+  const { repostPostId, repostUrl, reportedViews, followers } = parsed.data;
 
   const post = await db.repostPost.findUnique({
     where: { id: repostPostId },
-    select: { id: true, sourceAccountId: true },
+    select: { id: true, sourceAccountId: true, allowRepost: true },
   });
   if (!post) return fail(404, 'Post not found', 'NOT_FOUND');
+  if (!post.allowRepost) return fail(400, 'This post is collab-only', 'REPOST_DISABLED');
 
   const subscribed = await db.repostSubscription.findUnique({
     where: { employeeId_sourceAccountId: { employeeId: session.employeeId, sourceAccountId: post.sourceAccountId } },
@@ -68,6 +71,7 @@ export const POST = withEmployee(async ({ req, session }) => {
       employeeId: session.employeeId,
       repostUrl,
       reportedViews: reportedViews ?? null,
+      followers: followers ?? null,
     },
   });
 

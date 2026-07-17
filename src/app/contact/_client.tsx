@@ -52,19 +52,19 @@ export function ContactPageClient() {
   });
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="theme-light flex flex-col min-h-screen bg-background text-foreground">
       <MarketingNav />
 
       <main className="flex-1">
         <section className="container max-w-3xl px-4 py-16 sm:py-20">
           <div className="text-center max-w-xl mx-auto mb-10">
-            <span className="inline-flex items-center gap-2 rounded-full border bg-background/60 backdrop-blur px-3 py-1 text-xs text-muted-foreground mb-5">
-              <MessageCircle className="h-3 w-3" /> We typically reply within 24 hours
+            <span className="inline-flex items-center gap-2 rounded-full bg-accent text-primary text-xs font-bold px-3.5 py-1.5 mb-5">
+              <MessageCircle className="h-3.5 w-3.5" /> We typically reply within 24 hours
             </span>
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+            <h1 className="text-display text-3xl sm:text-[2.6rem]">
               Get in touch
             </h1>
-            <p className="mt-4 text-muted-foreground leading-relaxed">
+            <p className="mt-4 text-muted-foreground font-medium leading-relaxed">
               Have a question about Orcazo, a campaign, or your account? Drop us a message —
               no account required. We read every message.
             </p>

@@ -22,6 +22,7 @@ import { api } from "@/lib/api-client";
 const schema = z.object({
   repostUrl: z.string().url("Enter a valid URL").max(2048),
   reportedViews: z.string().optional(),
+  followers: z.string().optional(),
 });
 type Form = z.infer<typeof schema>;
 
@@ -35,7 +36,7 @@ export function SubmitRepostDialog({
   post: { id: string; accountLabel: string } | null;
 }) {
   const qc = useQueryClient();
-  const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { repostUrl: "", reportedViews: "" } });
+  const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { repostUrl: "", reportedViews: "", followers: "" } });
 
   const mutation = useMutation({
     mutationFn: (values: Form) =>
@@ -43,6 +44,7 @@ export function SubmitRepostDialog({
         repostPostId: post!.id,
         repostUrl: values.repostUrl,
         ...(values.reportedViews ? { reportedViews: Number(values.reportedViews) } : {}),
+        ...(values.followers ? { followers: Number(values.followers) } : {}),
       }),
     onSuccess: () => {
       toast.success("Repost submitted — admin will review it");
@@ -90,6 +92,20 @@ export function SubmitRepostDialog({
             />
             <p className="text-xs text-muted-foreground">
               Self-reported — just gives our team a quick data point when reviewing your payout.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="followers">Followers on the account you reposted with</Label>
+            <Input
+              id="followers"
+              type="number"
+              min="0"
+              placeholder="e.g. 55000"
+              disabled={mutation.isPending}
+              {...form.register("followers")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Your bounty tier is based on this — our team verifies it against your account.
             </p>
           </div>
           <DialogFooter>

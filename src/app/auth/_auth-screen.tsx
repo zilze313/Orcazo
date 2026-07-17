@@ -97,10 +97,10 @@ function LeftPanel() {
 
       {/* Headline */}
       <div className="z-10">
-        <h2 className="text-3xl font-semibold leading-snug tracking-tight max-w-xs">
-          Make money uploading videos on social media
+        <h2 className="text-display text-4xl max-w-xs">
+          Turn every video into a payout
         </h2>
-        <p className="mt-3 text-primary-foreground/75 text-sm max-w-xs leading-relaxed">
+        <p className="mt-4 text-primary-foreground/80 text-sm font-medium max-w-xs leading-relaxed">
           Join thousands of creators earning real income from short-form content.
           No follower minimum required.
         </p>
@@ -505,26 +505,25 @@ export function AuthScreen({ defaultTab }: { defaultTab: "login" | "signup" }) {
   const [tab, setTab] = React.useState<"login" | "signup">(defaultTab);
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2">
+    <div className="theme-light min-h-screen grid md:grid-cols-2 bg-background text-foreground">
       <LeftPanel />
 
       {/* Right: form */}
       <div className="flex flex-col justify-center px-6 py-12 sm:px-10 md:px-16">
         {/* Mobile logo */}
         <div className="md:hidden flex items-center gap-1 mb-8">
-          <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain dark:hidden" />
-          <img src="/Dark.png"  alt="Orcazo" className="h-8 w-auto object-contain hidden dark:block" />
+          <img src="/Light.png" alt="Orcazo" className="h-8 w-auto object-contain" />
         </div>
 
         <div className="w-full max-w-md mx-auto">
           {/* Tab switcher */}
-          <div className="flex rounded-lg border p-1 mb-6 bg-muted/40">
+          <div className="flex rounded-full border p-1 mb-6 bg-muted/50">
             <button
               type="button"
               onClick={() => setTab("login")}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`flex-1 py-2 text-sm font-bold rounded-full transition-all ${
                 tab === "login"
-                  ? "bg-background shadow-sm text-foreground"
+                  ? "bg-card shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -533,9 +532,9 @@ export function AuthScreen({ defaultTab }: { defaultTab: "login" | "signup" }) {
             <button
               type="button"
               onClick={() => setTab("signup")}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`flex-1 py-2 text-sm font-bold rounded-full transition-all ${
                 tab === "signup"
-                  ? "bg-background shadow-sm text-foreground"
+                  ? "bg-card shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -546,7 +545,7 @@ export function AuthScreen({ defaultTab }: { defaultTab: "login" | "signup" }) {
           {/* Form content */}
           <div>
             <div className="mb-5">
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="text-2xl font-extrabold tracking-tight">
                 {tab === "login" ? "Welcome back" : "Join the network"}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">

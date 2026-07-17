@@ -17,6 +17,9 @@ const createSchema = z.object({
   sourceAccountId: z.string().min(1).max(64),
   postUrl: z.string().url().max(2048),
   note: z.string().max(2000).nullish(),
+  allowRepost: z.boolean().default(true),
+  allowCollab: z.boolean().default(false),
+  collabSlots: z.coerce.number().int().min(1).max(20).default(5),
 });
 
 export const GET = withAdmin(async ({ req }) => {
@@ -53,8 +56,19 @@ export const POST = withAdmin(async ({ req }) => {
   const account = await db.repostSourceAccount.findUnique({ where: { id: v.sourceAccountId }, select: { id: true } });
   if (!account) return fail(404, 'Source account not found');
 
+  if (!v.allowRepost && !v.allowCollab) {
+    return fail(400, 'Enable at least one of repost or collab.');
+  }
+
   const created = await db.repostPost.create({
-    data: { sourceAccountId: v.sourceAccountId, postUrl: v.postUrl, note: v.note ?? null },
+    data: {
+      sourceAccountId: v.sourceAccountId,
+      postUrl: v.postUrl,
+      note: v.note ?? null,
+      allowRepost: v.allowRepost,
+      allowCollab: v.allowCollab,
+      collabSlots: v.collabSlots,
+    },
   });
 
   notifyRepostSubscribers({

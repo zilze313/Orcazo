@@ -10,7 +10,7 @@ const LAST_UPDATED = 'May 4, 2025';
 
 export default function TermsPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="theme-light flex flex-col min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 backdrop-blur bg-background/80 border-b">
         <div className="container max-w-7xl flex items-center h-16 px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-lg">

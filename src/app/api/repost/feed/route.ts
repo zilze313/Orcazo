@@ -5,7 +5,7 @@
 import { withEmployee, ok } from '@/lib/api';
 import { db } from '@/lib/db';
 import { limits } from '@/lib/ratelimit';
-import { repostAccountLabel } from '@/lib/repost';
+import { repostAccountLabel, getActiveBountyTiers } from '@/lib/repost';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,27 +21,37 @@ export const GET = withEmployee(async ({ req, session }) => {
   });
   const sourceAccountIds = subs.map((s) => s.sourceAccountId);
 
+  const tiers = await getActiveBountyTiers();
+
   if (sourceAccountIds.length === 0) {
-    return ok({ items: [], pagination: { page: 1, pageSize, total: 0, totalPages: 1 } });
+    return ok({ items: [], tiers, pagination: { page: 1, pageSize, total: 0, totalPages: 1 } });
   }
 
   const where = { sourceAccountId: { in: sourceAccountIds } };
-  const [total, posts, mySubmissions] = await Promise.all([
+  const [total, posts, mySubmissions, myCollabs] = await Promise.all([
     db.repostPost.count({ where }),
     db.repostPost.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { sourceAccount: { select: { platform: true, handle: true, displayName: true } } },
+      include: {
+        sourceAccount: { select: { platform: true, handle: true, displayName: true } },
+        _count: { select: { collabRequests: { where: { status: { not: 'REJECTED' } } } } },
+      },
     }),
     db.repostSubmission.findMany({
       where: { employeeId: session.employeeId },
       select: { repostPostId: true, repostUrl: true, reportedViews: true, status: true, createdAt: true },
     }),
+    db.repostCollabRequest.findMany({
+      where: { employeeId: session.employeeId },
+      select: { id: true, repostPostId: true, handle: true, status: true, createdAt: true },
+    }),
   ]);
 
   const submissionByPost = new Map(mySubmissions.map((s) => [s.repostPostId, s]));
+  const collabByPost = new Map(myCollabs.map((c) => [c.repostPostId, c]));
 
   return ok({
     items: posts.map((p) => ({
@@ -49,13 +59,18 @@ export const GET = withEmployee(async ({ req, session }) => {
       postUrl: p.postUrl,
       note: p.note,
       createdAt: p.createdAt,
+      allowRepost: p.allowRepost,
+      allowCollab: p.allowCollab,
+      collabSlotsLeft: p.allowCollab ? Math.max(0, p.collabSlots - p._count.collabRequests) : 0,
       account: {
         platform: p.sourceAccount.platform,
         handle: p.sourceAccount.handle,
         label: repostAccountLabel(p.sourceAccount),
       },
       mySubmission: submissionByPost.get(p.id) ?? null,
+      myCollabRequest: collabByPost.get(p.id) ?? null,
     })),
+    tiers,
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
   });
 }, { rateLimit: limits.employee });

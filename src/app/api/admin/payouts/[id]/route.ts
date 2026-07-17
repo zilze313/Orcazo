@@ -11,6 +11,8 @@ import { db } from '@/lib/db';
 import { fail, ok } from '@/lib/api';
 import { getAdminSession } from '@/lib/session';
 import { log } from '@/lib/logger';
+import { sendEmail, payoutApprovedEmail, payoutRejectedEmail } from '@/lib/email';
+import { notifyEmployee } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,7 +46,12 @@ export async function PATCH(
   const now = new Date();
   const existing = await db.payoutRequest.findUnique({
     where: { id },
-    select: { amountAtRequest: true, status: true },
+    select: {
+      amountAtRequest: true,
+      status: true,
+      employeeId: true,
+      employee: { select: { email: true, firstName: true } },
+    },
   });
   if (!existing) return fail(404, 'Not found');
 
@@ -76,6 +83,33 @@ export async function PATCH(
     data: updateData,
   }).catch(() => null);
   if (!updated) return fail(404, 'Not found');
+
+  // Tell the creator their money status changed — fire-and-forget so a mail
+  // hiccup never blocks the admin action.
+  const displayName = existing.employee.firstName || existing.employee.email.split('@')[0];
+  if (parsed.data.action === 'approve') {
+    const tpl = payoutApprovedEmail({ displayName, amount: parsed.data.amountPaid });
+    sendEmail({ to: existing.employee.email, ...tpl })
+      .catch((err) => log.warn('payout.approve_email_failed', { id, err: String(err) }));
+    await notifyEmployee({
+      employeeId: existing.employeeId,
+      type: 'payout_approved',
+      title: 'Your withdrawal was approved 🎉',
+      body: `$${parsed.data.amountPaid.toFixed(2)} is on its way to you.`,
+      url: '/payouts',
+    });
+  } else if (parsed.data.action === 'reject') {
+    const tpl = payoutRejectedEmail({ displayName, reason: parsed.data.adminNote });
+    sendEmail({ to: existing.employee.email, ...tpl })
+      .catch((err) => log.warn('payout.reject_email_failed', { id, err: String(err) }));
+    await notifyEmployee({
+      employeeId: existing.employeeId,
+      type: 'payout_rejected',
+      title: 'Your withdrawal was rejected',
+      body: parsed.data.adminNote,
+      url: '/payouts',
+    });
+  }
 
   db.adminAuditLog.create({
     data: {

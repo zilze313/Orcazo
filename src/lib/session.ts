@@ -10,7 +10,11 @@ import { log } from "./logger";
 const COOKIE_NAME = "sf_session";
 const ADMIN_COOKIE_NAME = "sf_admin";
 const SESSION_TTL_DAYS = 30;
-const ADMIN_TTL_HOURS = 12;
+// Admin sessions are sliding: valid for ADMIN_IDLE_DAYS since last activity.
+// Each authenticated request pushes the expiry forward (throttled to one DB
+// write per hour), so an active admin is never logged out mid-work.
+const ADMIN_IDLE_DAYS = 7;
+const ADMIN_RENEW_THROTTLE_MS = 60 * 60 * 1000;
 
 const cookieOpts = {
   httpOnly: true as const,
@@ -100,7 +104,7 @@ export interface AdminSession {
 }
 
 export async function createAdminSession(adminId: string) {
-  const expiresAt = new Date(Date.now() + ADMIN_TTL_HOURS * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + ADMIN_IDLE_DAYS * 24 * 60 * 60 * 1000);
   const session = await db.adminSession.create({
     data: { adminId, expiresAt },
   });
@@ -112,7 +116,8 @@ export async function createAdminSession(adminId: string) {
 }
 
 export async function getAdminSession(): Promise<AdminSession | null> {
-  const sessionId = (await cookies()).get(ADMIN_COOKIE_NAME)?.value;
+  const c = await cookies();
+  const sessionId = c.get(ADMIN_COOKIE_NAME)?.value;
   if (!sessionId) return null;
 
   const session = await db.adminSession.findUnique({
@@ -120,6 +125,20 @@ export async function getAdminSession(): Promise<AdminSession | null> {
     include: { admin: true },
   });
   if (!session || session.expiresAt < new Date()) return null;
+
+  // Sliding renewal: extend the expiry while the admin stays active.
+  const target = Date.now() + ADMIN_IDLE_DAYS * 24 * 60 * 60 * 1000;
+  if (target - session.expiresAt.getTime() > ADMIN_RENEW_THROTTLE_MS) {
+    const expiresAt = new Date(target);
+    await db.adminSession
+      .update({ where: { id: session.id }, data: { expiresAt } })
+      .catch(() => {});
+    try {
+      // Only possible in route handlers / server actions; server components
+      // can't set cookies — the next API call will refresh it instead.
+      c.set(ADMIN_COOKIE_NAME, session.id, { ...cookieOpts, expires: expiresAt });
+    } catch { /* read-only cookie context */ }
+  }
 
   const role =
     (session.admin as { role?: string }).role === "SUPER_ADMIN"

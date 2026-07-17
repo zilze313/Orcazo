@@ -11,7 +11,9 @@ import { ServiceWorkerRegistrar } from '@/components/service-worker-registrar';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  manifest: '/manifest.json',
+  // Admin-specific manifest: installing the PWA from an admin page must open
+  // /admin, not the creator app (whose manifest starts at /campaigns).
+  manifest: '/admin-manifest.json',
 };
 
 export default async function AdminAuthedLayout({ children }: { children: React.ReactNode }) {

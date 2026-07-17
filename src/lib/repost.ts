@@ -72,6 +72,46 @@ export async function notifyRepostSubscribers(opts: {
   }
 }
 
+export interface BountyTier {
+  id: string;
+  minFollowers: number;
+  repostBounty: number;
+  collabBounty: number;
+}
+
+/** Active bounty tiers, ascending by follower floor. */
+export async function getActiveBountyTiers(): Promise<BountyTier[]> {
+  const rows = await db.repostBountyTier.findMany({
+    where: { active: true },
+    orderBy: { minFollowers: 'asc' },
+  });
+  return rows.map((t) => ({
+    id: t.id,
+    minFollowers: t.minFollowers,
+    repostBounty: parseFloat(String(t.repostBounty)) || 0,
+    collabBounty: parseFloat(String(t.collabBounty)) || 0,
+  }));
+}
+
+/**
+ * Resolve the bounty for a follower count: the highest tier whose floor the
+ * creator clears. Returns 0 when no tier matches (below the lowest floor or
+ * unknown followers) — the admin can still set a custom amount on approval.
+ */
+export function resolveBounty(
+  tiers: BountyTier[],
+  followers: number | null | undefined,
+  kind: 'repost' | 'collab',
+): number {
+  if (followers == null || followers < 0) return 0;
+  let bounty = 0;
+  for (const t of tiers) {
+    if (followers >= t.minFollowers) bounty = kind === 'repost' ? t.repostBounty : t.collabBounty;
+    else break;
+  }
+  return bounty;
+}
+
 /** Repost wallet balance = sum(credits) − sum(amountAtRequest of PAID requests). */
 export async function getRepostWalletBalance(employeeId: string): Promise<number> {
   const [creditAgg, paidAgg] = await Promise.all([

@@ -243,22 +243,32 @@ function AddAccountForm({ campaignId, onClose, onSaved }: { campaignId: string; 
 function LogPostDialog({ target, onClose }: { target: { id: string; label: string } | null; onClose: () => void }) {
   const [postUrl, setPostUrl] = React.useState('');
   const [note, setNote] = React.useState('');
+  const [allowRepost, setAllowRepost] = React.useState(true);
+  const [allowCollab, setAllowCollab] = React.useState(false);
+  const [collabSlots, setCollabSlots] = React.useState('5');
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    if (target) { setPostUrl(''); setNote(''); }
+    if (target) {
+      setPostUrl(''); setNote('');
+      setAllowRepost(true); setAllowCollab(false); setCollabSlots('5');
+    }
   }, [target]);
 
   if (!target) return null;
 
   async function submit() {
     if (!postUrl.trim()) { toast.error('Post URL is required'); return; }
+    if (!allowRepost && !allowCollab) { toast.error('Enable at least one of repost or collab.'); return; }
     setSaving(true);
     try {
       await api.post('/api/admin/repost/posts', {
         sourceAccountId: target!.id,
         postUrl: postUrl.trim(),
         note: note.trim() || null,
+        allowRepost,
+        allowCollab,
+        collabSlots: Math.min(20, Math.max(1, parseInt(collabSlots, 10) || 5)),
       });
       toast.success('Post logged — subscribers are being notified');
       onClose();
@@ -287,6 +297,31 @@ function LogPostDialog({ target, onClose }: { target: { id: string; label: strin
           <Label>Note (optional)</Label>
           <Input placeholder="e.g. Repost within 24h for best results" value={note} onChange={(e) => setNote(e.target.value)} disabled={saving} />
         </div>
+
+        <div className="space-y-2 border rounded-md p-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={allowRepost} onChange={(e) => setAllowRepost(e.target.checked)} disabled={saving} className="h-4 w-4 accent-primary" />
+            Creators can <strong>repost</strong> this
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={allowCollab} onChange={(e) => setAllowCollab(e.target.checked)} disabled={saving} className="h-4 w-4 accent-primary" />
+            Creators can request a <strong>collab</strong> on this
+          </label>
+          {allowCollab && (
+            <div className="flex items-center gap-2 pl-6 pt-1">
+              <Label className="text-xs text-muted-foreground">Collab slots</Label>
+              <Input
+                type="number" min="1" max="20"
+                className="w-20 h-8 text-sm tabular-nums"
+                value={collabSlots}
+                onChange={(e) => setCollabSlots(e.target.value)}
+                disabled={saving}
+              />
+              <span className="text-[11px] text-muted-foreground">Instagram allows up to 5 collaborators per post</span>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={submit} disabled={saving}>

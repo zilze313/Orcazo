@@ -3,12 +3,16 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, ListChecks, Wallet, Banknote } from 'lucide-react';
+import { LayoutGrid, ListChecks, Wallet, Banknote, Handshake, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const SUB_PAGES = ['/admin/reposting/submissions', '/admin/reposting/collabs', '/admin/reposting/tiers', '/admin/reposting/credits', '/admin/reposting/payouts'];
+
 const TABS = [
-  { href: '/admin/reposting',             label: 'Campaigns',   icon: LayoutGrid, match: (p: string) => !p.startsWith('/admin/reposting/submissions') && !p.startsWith('/admin/reposting/credits') && !p.startsWith('/admin/reposting/payouts') },
+  { href: '/admin/reposting',             label: 'Campaigns',   icon: LayoutGrid, match: (p: string) => !SUB_PAGES.some((s) => p.startsWith(s)) },
   { href: '/admin/reposting/submissions', label: 'Submissions', icon: ListChecks, match: (p: string) => p.startsWith('/admin/reposting/submissions') },
+  { href: '/admin/reposting/collabs',     label: 'Collabs',     icon: Handshake,  match: (p: string) => p.startsWith('/admin/reposting/collabs') },
+  { href: '/admin/reposting/tiers',       label: 'Tiers',       icon: Layers,     match: (p: string) => p.startsWith('/admin/reposting/tiers') },
   { href: '/admin/reposting/credits',     label: 'Credits',     icon: Wallet,     match: (p: string) => p.startsWith('/admin/reposting/credits') },
   { href: '/admin/reposting/payouts',     label: 'Payouts',     icon: Banknote,   match: (p: string) => p.startsWith('/admin/reposting/payouts') },
 ];

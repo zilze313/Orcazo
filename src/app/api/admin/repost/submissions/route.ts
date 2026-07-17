@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
-  status:   z.enum(['all', 'PENDING', 'REVIEWED']).default('PENDING'),
+  status:   z.enum(['all', 'PENDING', 'REVIEWED', 'APPROVED', 'REJECTED']).default('PENDING'),
   page:     z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -44,7 +44,9 @@ export const GET = withAdmin(async ({ req }) => {
       id: s.id,
       repostUrl: s.repostUrl,
       reportedViews: s.reportedViews,
+      followers: s.followers,
       status: s.status,
+      bountyPaid: s.bountyPaid != null ? parseFloat(String(s.bountyPaid)) : null,
       adminNote: s.adminNote,
       createdAt: s.createdAt,
       employee: s.employee,

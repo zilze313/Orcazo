@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ShieldCheck, Users, FileText, UserPlus, Wallet, AtSign,
   LogOut, Loader2, Menu, X, Moon, Sun, BookOpen, KeyRound, Megaphone, LayoutGrid, Tag, MessageSquare,
-  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox, Mail, Sparkles, Repeat,
+  Activity, Film, UserCog, Settings, Gift, Send, MailPlus, Inbox, Mail, Sparkles, Repeat, Trophy, Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -53,6 +53,8 @@ const NAV = [
   { href: '/admin/messages',         label: 'Messages',           icon: MessageSquare,   permission: 'messages' },
   { href: '/admin/contact-messages', label: 'Contact form',       icon: Mail,            permission: 'messages' },
   { href: '/admin/homepage-videos',  label: 'Homepage Videos',    icon: Film,            permission: 'content' },
+  { href: '/admin/showcase-payouts', label: 'Payout Wall',        icon: Trophy,          permission: 'content' },
+  { href: '/admin/brand-requests',   label: 'Brand Requests',     icon: Briefcase,       permission: 'campaigns' },
   { href: '/admin/health',           label: 'Health',             icon: Activity,        permission: 'health' },
   { href: '/admin/admins',           label: 'Admins',             icon: UserCog,         permission: 'admins' },
   { href: '/admin/referral-claims',  label: 'Referral Claims',    icon: Gift,            permission: 'creators' },

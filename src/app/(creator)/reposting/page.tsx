@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   Repeat, Rss, ListChecks, Wallet, Send, Loader2, CheckCircle2, Clock,
   XCircle, Banknote, Bitcoin, Mail, DollarSign, History, ExternalLink,
+  Handshake, Layers, UserCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -23,8 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmptyState } from "@/components/empty-state";
 import { PlatformIcon } from "@/components/platform-icon";
 import { SubmitRepostDialog } from "@/components/repost/submit-repost-dialog";
+import { RequestCollabDialog } from "@/components/repost/request-collab-dialog";
 import { api } from "@/lib/api-client";
-import { formatMoney, formatRelative } from "@/lib/utils";
+import { formatMoney, formatNumber, formatRelative } from "@/lib/utils";
 
 type Tab = "feed" | "submissions" | "wallet";
 
@@ -75,88 +77,203 @@ interface FeedPost {
   postUrl: string;
   note: string | null;
   createdAt: string;
+  allowRepost: boolean;
+  allowCollab: boolean;
+  collabSlotsLeft: number;
   account: { platform: string; handle: string; label: string };
   mySubmission: { repostUrl: string; reportedViews: number | null; status: string; createdAt: string } | null;
+  myCollabRequest: { id: string; handle: string; status: string; createdAt: string } | null;
 }
+interface FeedTier { id: string; minFollowers: number; repostBounty: number; collabBounty: number }
 interface FeedResp {
   items: FeedPost[];
+  tiers: FeedTier[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
 function FeedTab() {
+  const qc = useQueryClient();
   const query = useQuery<FeedResp>({
     queryKey: ["repost", "feed"],
     queryFn: () => api.get<FeedResp>("/api/repost/feed"),
     staleTime: 10_000,
   });
   const [submitTarget, setSubmitTarget] = React.useState<{ id: string; accountLabel: string } | null>(null);
+  const [collabTarget, setCollabTarget] = React.useState<{ id: string; accountLabel: string; platform: string } | null>(null);
 
   if (query.isLoading) {
     return <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>;
   }
 
   const items = query.data?.items ?? [];
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        icon={Rss}
-        title="No posts yet"
-        description="Subscribe to an account in Explore Campaigns to see their posts here when admin logs a new one."
-      />
-    );
-  }
+  const tiers = query.data?.tiers ?? [];
 
   return (
     <>
-      <div className="space-y-3">
-        {items.map((post) => (
-          <Card key={post.id} className="p-4">
-            <div className="flex items-start gap-3">
-              <PlatformIcon platform={post.account.platform} className="h-5 w-5 flex-shrink-0 text-muted-foreground mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm">{post.account.label}</span>
-                  <span className="text-xs text-muted-foreground">{formatRelative(post.createdAt)}</span>
-                </div>
-                <a
-                  href={post.postUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1 break-all"
-                >
-                  <ExternalLink className="h-3 w-3 flex-shrink-0" /> {post.postUrl}
-                </a>
-                {post.note && <p className="text-xs text-muted-foreground mt-1">{post.note}</p>}
-              </div>
-              <div className="flex-shrink-0">
-                {post.mySubmission ? (
-                  <SubmissionStatusBadge status={post.mySubmission.status} />
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={() => setSubmitTarget({ id: post.id, accountLabel: post.account.label })}
+      <TierStrip tiers={tiers} />
+
+      {items.length === 0 ? (
+        <EmptyState
+          icon={Rss}
+          title="No posts yet"
+          description="Subscribe to an account in Explore Campaigns to see their posts here when admin logs a new one."
+        />
+      ) : (
+        <div className="space-y-3">
+          {items.map((post) => (
+            <Card key={post.id} className="p-4">
+              <div className="flex items-start gap-3 flex-wrap">
+                <PlatformIcon platform={post.account.platform} className="h-5 w-5 flex-shrink-0 text-muted-foreground mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm">{post.account.label}</span>
+                    <span className="text-xs text-muted-foreground">{formatRelative(post.createdAt)}</span>
+                    {post.allowRepost && <Badge variant="secondary" className="gap-1 text-[10px]"><Repeat className="h-2.5 w-2.5" /> Repost</Badge>}
+                    {post.allowCollab && (
+                      <Badge variant="secondary" className="gap-1 text-[10px]">
+                        <Handshake className="h-2.5 w-2.5" /> Collab · {post.collabSlotsLeft} slot{post.collabSlotsLeft === 1 ? "" : "s"} left
+                      </Badge>
+                    )}
+                  </div>
+                  <a
+                    href={post.postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1 break-all"
                   >
-                    <Send className="h-3.5 w-3.5" /> Submit repost
-                  </Button>
-                )}
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" /> {post.postUrl}
+                  </a>
+                  {post.note && <p className="text-xs text-muted-foreground mt-1">{post.note}</p>}
+                </div>
+                <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+                  {post.allowRepost && (
+                    post.mySubmission ? (
+                      <SubmissionStatusBadge status={post.mySubmission.status} />
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => setSubmitTarget({ id: post.id, accountLabel: post.account.label })}
+                      >
+                        <Send className="h-3.5 w-3.5" /> Submit repost
+                      </Button>
+                    )
+                  )}
+                  {post.allowCollab && (
+                    post.myCollabRequest ? (
+                      <CollabStatusInline
+                        status={post.myCollabRequest.status}
+                        requestId={post.myCollabRequest.id}
+                        onConfirmed={() => {
+                          qc.invalidateQueries({ queryKey: ["repost", "feed"] });
+                          qc.invalidateQueries({ queryKey: ["repost", "collabs"] });
+                        }}
+                      />
+                    ) : post.collabSlotsLeft > 0 ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setCollabTarget({ id: post.id, accountLabel: post.account.label, platform: post.account.platform })}
+                      >
+                        <Handshake className="h-3.5 w-3.5" /> Request collab
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">Collab slots full</Badge>
+                    )
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <SubmitRepostDialog
         open={!!submitTarget}
         onOpenChange={(v) => { if (!v) setSubmitTarget(null); }}
         post={submitTarget}
       />
+      <RequestCollabDialog
+        open={!!collabTarget}
+        onOpenChange={(v) => { if (!v) setCollabTarget(null); }}
+        post={collabTarget}
+      />
     </>
   );
 }
 
+/** Compact earnings table so creators know what a repost/collab pays. */
+function TierStrip({ tiers }: { tiers: FeedTier[] }) {
+  if (tiers.length === 0) return null;
+  return (
+    <div className="mb-4 rounded-md border bg-muted/30 px-4 py-3">
+      <div className="flex items-center gap-2 text-xs font-semibold text-foreground mb-2">
+        <Layers className="h-3.5 w-3.5" /> Bounty per approved repost / collab
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {tiers.map((t) => (
+          <span key={t.id} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs">
+            <span className="text-muted-foreground tabular-nums">{formatNumber(t.minFollowers)}+ followers</span>
+            <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">
+              {formatMoney(t.repostBounty)}{t.collabBounty !== t.repostBounty ? ` / ${formatMoney(t.collabBounty)}` : ""}
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SubmissionStatusBadge({ status }: { status: string }) {
+  if (status === "APPROVED") return <Badge variant="success" className="gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Approved</Badge>;
+  if (status === "REJECTED") return <Badge variant="destructive" className="gap-1"><XCircle className="h-2.5 w-2.5" /> Rejected</Badge>;
   if (status === "REVIEWED") return <Badge variant="success" className="gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Reviewed</Badge>;
   return <Badge variant="warning" className="gap-1"><Clock className="h-2.5 w-2.5" /> Pending review</Badge>;
+}
+
+function CollabStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "INVITED":  return <Badge variant="warning" className="gap-1"><Send className="h-2.5 w-2.5" /> Invite sent — check your app</Badge>;
+    case "ACCEPTED": return <Badge variant="secondary" className="gap-1"><UserCheck className="h-2.5 w-2.5" /> Accepted — being verified</Badge>;
+    case "APPROVED": return <Badge variant="success" className="gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Collab approved</Badge>;
+    case "REJECTED": return <Badge variant="destructive" className="gap-1"><XCircle className="h-2.5 w-2.5" /> Declined</Badge>;
+    default:         return <Badge variant="warning" className="gap-1"><Clock className="h-2.5 w-2.5" /> Collab requested</Badge>;
+  }
+}
+
+/** Collab status in the feed; when INVITED, lets the creator confirm acceptance. */
+function CollabStatusInline({
+  status, requestId, onConfirmed,
+}: {
+  status: string;
+  requestId: string;
+  onConfirmed: () => void;
+}) {
+  const [confirming, setConfirming] = React.useState(false);
+
+  if (status !== "INVITED") return <CollabStatusBadge status={status} />;
+
+  async function confirm() {
+    setConfirming(true);
+    try {
+      await api.patch("/api/repost/collab-requests", { id: requestId, action: "accepted" });
+      toast.success("Confirmed — our team will verify and credit your bounty");
+      onConfirmed();
+    } catch (e) {
+      toast.error((e as Error)?.message || "Failed");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <CollabStatusBadge status={status} />
+      <Button size="sm" variant="outline" onClick={confirm} disabled={confirming}>
+        {confirming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+        I accepted the invite
+      </Button>
+    </div>
+  );
 }
 
 // ─── My Submissions ─────────────────────────────────────────────────────────
@@ -166,78 +283,199 @@ interface SubmissionItem {
   repostUrl: string;
   reportedViews: number | null;
   status: string;
+  bountyPaid: number | null;
+  adminNote: string | null;
+  createdAt: string;
+  post: { postUrl: string; account: { platform: string; label: string } };
+}
+
+interface CollabItem {
+  id: string;
+  handle: string;
+  status: string;
+  bountyPaid: number | null;
   adminNote: string | null;
   createdAt: string;
   post: { postUrl: string; account: { platform: string; label: string } };
 }
 
 function SubmissionsTab() {
+  const qc = useQueryClient();
   const query = useQuery<{ items: SubmissionItem[] }>({
     queryKey: ["repost", "submissions"],
     queryFn: () => api.get("/api/repost/submissions"),
     staleTime: 10_000,
   });
+  const collabs = useQuery<{ items: CollabItem[] }>({
+    queryKey: ["repost", "collabs"],
+    queryFn: () => api.get("/api/repost/collab-requests"),
+    staleTime: 10_000,
+  });
 
-  if (query.isLoading) {
+  if (query.isLoading || collabs.isLoading) {
     return <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>;
   }
 
   const items = query.data?.items ?? [];
-  if (items.length === 0) {
+  const collabItems = collabs.data?.items ?? [];
+
+  if (items.length === 0 && collabItems.length === 0) {
     return (
       <EmptyState
         icon={ListChecks}
         title="No submissions yet"
-        description="Once you submit a repost from the Feed tab, it'll show up here."
+        description="Once you submit a repost or request a collab from the Feed tab, it'll show up here."
       />
     );
   }
 
   return (
-    <Card className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Account</TableHead>
-            <TableHead>Your repost</TableHead>
-            <TableHead className="text-right">Views</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Submitted</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((s) => (
-            <React.Fragment key={s.id}>
-              <TableRow>
-                <TableCell className="text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <PlatformIcon platform={s.post.account.platform} className="h-3.5 w-3.5 text-muted-foreground" />
-                    {s.post.account.label}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <a href={s.repostUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">
-                    {s.repostUrl}
-                  </a>
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-xs">
-                  {s.reportedViews != null ? s.reportedViews.toLocaleString() : "—"}
-                </TableCell>
-                <TableCell><SubmissionStatusBadge status={s.status} /></TableCell>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(s.createdAt)}</TableCell>
-              </TableRow>
-              {s.adminNote && (
-                <TableRow className="bg-muted/20">
-                  <TableCell colSpan={5} className="py-1.5 px-4 text-xs text-muted-foreground italic">
-                    {s.adminNote}
-                  </TableCell>
+    <div className="space-y-6">
+      {items.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Repeat className="h-4 w-4" /> Reposts
+          </h2>
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Your repost</TableHead>
+                  <TableHead className="text-right">Views</TableHead>
+                  <TableHead className="text-right">Bounty</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
                 </TableRow>
-              )}
-            </React.Fragment>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {items.map((s) => (
+                  <React.Fragment key={s.id}>
+                    <TableRow>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <PlatformIcon platform={s.post.account.platform} className="h-3.5 w-3.5 text-muted-foreground" />
+                          {s.post.account.label}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <a href={s.repostUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">
+                          {s.repostUrl}
+                        </a>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {s.reportedViews != null ? s.reportedViews.toLocaleString() : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {s.bountyPaid != null
+                          ? <span className="font-semibold text-green-600 dark:text-green-400">{formatMoney(s.bountyPaid)}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell><SubmissionStatusBadge status={s.status} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(s.createdAt)}</TableCell>
+                    </TableRow>
+                    {s.adminNote && (
+                      <TableRow className="bg-muted/20">
+                        <TableCell colSpan={6} className="py-1.5 px-4 text-xs text-muted-foreground italic">
+                          {s.adminNote}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
+      )}
+
+      {collabItems.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Handshake className="h-4 w-4" /> Collabs
+          </h2>
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Your handle</TableHead>
+                  <TableHead className="text-right">Bounty</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {collabItems.map((c) => (
+                  <React.Fragment key={c.id}>
+                    <TableRow>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <PlatformIcon platform={c.post.account.platform} className="h-3.5 w-3.5 text-muted-foreground" />
+                          {c.post.account.label}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">@{c.handle}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {c.bountyPaid != null
+                          ? <span className="font-semibold text-green-600 dark:text-green-400">{formatMoney(c.bountyPaid)}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell><CollabStatusBadge status={c.status} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(c.createdAt)}</TableCell>
+                      <TableCell className="text-right">
+                        {c.status === "INVITED" && (
+                          <ConfirmAcceptButton
+                            id={c.id}
+                            onDone={() => {
+                              qc.invalidateQueries({ queryKey: ["repost", "collabs"] });
+                              qc.invalidateQueries({ queryKey: ["repost", "feed"] });
+                            }}
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {c.adminNote && (
+                      <TableRow className="bg-muted/20">
+                        <TableCell colSpan={6} className="py-1.5 px-4 text-xs text-muted-foreground italic">
+                          {c.adminNote}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfirmAcceptButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <Button
+      size="sm" variant="outline"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await api.patch("/api/repost/collab-requests", { id, action: "accepted" });
+          toast.success("Confirmed — our team will verify and credit your bounty");
+          onDone();
+        } catch (e) {
+          toast.error((e as Error)?.message || "Failed");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+      I accepted
+    </Button>
   );
 }
 

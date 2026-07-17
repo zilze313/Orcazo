@@ -6,6 +6,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC = [
   '/login', '/admin/login',
+  // Fetched by the browser WITHOUT cookies when installing the admin PWA —
+  // must never be redirected to the login page.
+  '/admin-manifest.json',
   '/api/auth', '/api/admin/auth',
   '/api/inbound-email', '/api/public',
   '/auth',

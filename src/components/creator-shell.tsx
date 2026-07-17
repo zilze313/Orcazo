@@ -29,6 +29,7 @@ import { api } from "@/lib/api-client";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { NotificationBell } from "@/components/notification-bell";
+import { PayoutCelebration } from "@/components/payout-celebration";
 
 const NAV = [
   { href: "/campaigns",      label: "Explore Campaigns",    icon: Compass   },
@@ -87,7 +88,7 @@ export function CreatorShell({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 border-r bg-background flex-col transition-transform md:static md:flex",
+          "fixed inset-y-0 left-0 z-40 w-64 border-r bg-card flex-col transition-transform md:static md:flex",
           mobileOpen
             ? "flex translate-x-0"
             : "-translate-x-full md:translate-x-0",
@@ -125,10 +126,10 @@ export function CreatorShell({
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
                   active
-                    ? "bg-secondary text-secondary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    ? "bg-accent text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -144,7 +145,7 @@ export function CreatorShell({
         </nav>
         <div className="border-t p-3">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
+            <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
@@ -182,7 +183,7 @@ export function CreatorShell({
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden h-16 border-b flex items-center px-4 bg-background sticky top-0 z-20">
+        <header className="md:hidden h-16 border-b flex items-center px-4 bg-card sticky top-0 z-20">
           <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2">
             <Menu className="h-5 w-5" />
           </button>
@@ -192,6 +193,7 @@ export function CreatorShell({
         <main className="flex-1">{children}</main>
       </div>
       <OnboardingTour />
+      <PayoutCelebration />
     </div>
   );
 }

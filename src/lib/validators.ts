@@ -60,6 +60,21 @@ export const contactMessageBody = z.object({
   turnstileToken: z.string().min(1, "Captcha required"),
 });
 
+export const BRAND_BUDGETS = ["under-1000", "1000-5000", "5000-10000", "10000-25000", "25000-plus"] as const;
+export const BRAND_PLATFORMS = ["tiktok", "instagram", "youtube", "snapchat", "other"] as const;
+
+export const brandRequestBody = z.object({
+  brandName:      z.string().trim().min(2, "Enter your brand name").max(120),
+  contactName:    z.string().trim().min(2, "Enter your name").max(120),
+  email:          emailSchema,
+  website:        z.string().trim().max(300).optional().or(z.literal("")),
+  campaignName:   z.string().trim().min(3, "Give your campaign a name").max(160),
+  budget:         z.enum(BRAND_BUDGETS),
+  platforms:      z.array(z.enum(BRAND_PLATFORMS)).min(1, "Pick at least one platform").max(5),
+  description:    z.string().trim().max(3000).optional().or(z.literal("")),
+  turnstileToken: z.string().min(1, "Captcha required"),
+});
+
 export const creatorSignupBody = z.object({
   publicEmail: emailSchema,
   fullName: z.string().trim().min(2, "Please enter your full name").max(120),
@@ -211,6 +226,31 @@ export const repostSubmissionBody = z.object({
   repostPostId: z.string().min(1).max(64),
   repostUrl: z.string().url().max(2048),
   reportedViews: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+  followers: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+});
+
+export const repostCollabRequestBody = z.object({
+  repostPostId: z.string().min(1).max(64),
+  handle: z.string().trim().min(1, 'Enter the handle to invite').max(120),
+  platform: z.string().trim().max(40).optional(),
+  followers: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+});
+
+/** Creator confirming they accepted the collab invite on the platform. */
+export const repostCollabAcceptBody = z.object({
+  id: z.string().min(1).max(64),
+  action: z.literal('accepted'),
+});
+
+// =============================================================
+// Reposting (admin)
+// =============================================================
+
+export const repostBountyTierBody = z.object({
+  minFollowers: z.coerce.number().int().min(0).max(1_000_000_000),
+  repostBounty: z.coerce.number().min(0).max(1_000_000),
+  collabBounty: z.coerce.number().min(0).max(1_000_000),
+  active: z.boolean().default(true),
 });
 
 export const dashFiltersSchema = z.object({
