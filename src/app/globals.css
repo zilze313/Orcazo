@@ -94,6 +94,108 @@
       );
   }
 
+  /* ── Hero: ambient drifting aurora blobs ─────────────────────── */
+  .hero-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(70px);
+    will-change: transform;
+    pointer-events: none;
+  }
+  .hero-blob-1 {
+    width: 34rem;
+    height: 34rem;
+    top: -9rem;
+    left: -7rem;
+    background: radial-gradient(circle at center, hsl(24 100% 60% / 0.45), transparent 68%);
+    animation: blob-drift-a 22s ease-in-out infinite;
+  }
+  .hero-blob-2 {
+    width: 30rem;
+    height: 30rem;
+    top: -5rem;
+    right: -5rem;
+    background: radial-gradient(circle at center, hsl(10 100% 63% / 0.36), transparent 68%);
+    animation: blob-drift-b 26s ease-in-out infinite;
+  }
+  .hero-blob-3 {
+    width: 27rem;
+    height: 27rem;
+    bottom: -11rem;
+    left: 34%;
+    background: radial-gradient(circle at center, hsl(38 100% 60% / 0.4), transparent 68%);
+    animation: blob-drift-c 24s ease-in-out infinite;
+  }
+  @keyframes blob-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(44px, 34px) scale(1.12); }
+    66% { transform: translate(-30px, 22px) scale(0.95); }
+  }
+  @keyframes blob-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-52px, 40px) scale(1.16); }
+  }
+  @keyframes blob-drift-c {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(44px, -34px) scale(1.1); }
+  }
+
+  /* ── Hero: orchestrated entrance ─────────────────────────────── */
+  @keyframes word-rise {
+    from { opacity: 0; transform: translateY(0.55em); filter: blur(7px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+  .animate-word-rise {
+    animation: word-rise 0.8s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up {
+    animation: fade-up 0.7s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+  }
+
+  /* ── Hero: animated orange gradient text ─────────────────────── */
+  .hero-gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      hsl(22 100% 50%),
+      hsl(8 96% 56%),
+      hsl(36 100% 52%),
+      hsl(22 100% 50%)
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: gradient-pan 5s linear infinite;
+  }
+  @keyframes gradient-pan {
+    to { background-position: 200% center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-blob,
+    .animate-word-rise,
+    .animate-fade-up,
+    .hero-gradient-text {
+      animation: none;
+    }
+    .animate-word-rise,
+    .animate-fade-up {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+    .hero-gradient-text {
+      -webkit-text-fill-color: hsl(22 100% 50%);
+      color: hsl(22 100% 50%);
+    }
+  }
+
   @keyframes marquee {
     from {
       transform: translateX(0);

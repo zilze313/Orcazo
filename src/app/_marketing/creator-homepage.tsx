@@ -46,17 +46,29 @@ export function CreatorHomepage({
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-hero-glow">
-        <div className="container max-w-7xl px-4 pt-14 pb-20 sm:pt-20 sm:pb-28 grid lg:grid-cols-[1.15fr_1fr] gap-14 items-center">
-          <FadeIn>
-            <h1 className="text-display text-[2.6rem] sm:text-6xl lg:text-[4.2rem]">
-              Turn every video
-              <br />
-              into a payout
-            </h1>
-            <p className="mt-6 text-base sm:text-lg text-muted-foreground font-medium max-w-md leading-relaxed">
+        {/* Ambient drifting aurora */}
+        <div
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+          aria-hidden
+        >
+          <span className="hero-blob hero-blob-1" />
+          <span className="hero-blob hero-blob-2" />
+          <span className="hero-blob hero-blob-3" />
+        </div>
+
+        <div className="relative z-10 container max-w-7xl px-4 pt-14 pb-20 sm:pt-20 sm:pb-28 grid lg:grid-cols-[1.15fr_1fr] gap-14 items-center">
+          <div>
+            <HeroHeadline />
+            <p
+              className="animate-fade-up mt-6 text-base sm:text-lg text-muted-foreground font-medium max-w-md leading-relaxed"
+              style={{ animationDelay: "0.55s" }}
+            >
               {MARKETING.creatorHero.sub}
             </p>
-            <div className="mt-9 flex flex-col sm:flex-row gap-3">
+            <div
+              className="animate-fade-up mt-9 flex flex-col sm:flex-row gap-3"
+              style={{ animationDelay: "0.68s" }}
+            >
               <Button size="xl" asChild>
                 <Link href="/auth?tab=signup">Start Earning Today</Link>
               </Button>
@@ -69,7 +81,10 @@ export function CreatorHomepage({
                 <Link href="#how-it-works">How It Works</Link>
               </Button>
             </div>
-            <div className="mt-10 flex items-center gap-2.5 text-muted-foreground text-sm font-medium">
+            <div
+              className="animate-fade-up mt-10 flex items-center gap-2.5 text-muted-foreground text-sm font-medium"
+              style={{ animationDelay: "0.8s" }}
+            >
               <span>Earn on</span>
               <div className="flex items-center gap-2.5">
                 {PLATFORMS.map((p) => (
@@ -81,76 +96,64 @@ export function CreatorHomepage({
                 ))}
               </div>
             </div>
-          </FadeIn>
+          </div>
 
-          {/* Floating app-card stack */}
-          <div className="relative h-[440px] hidden lg:block" aria-hidden>
+          {/* Desktop floating app-card stack */}
+          <div
+            className="animate-fade-up relative h-[440px] hidden lg:block"
+            style={{ animationDelay: "0.4s" }}
+            aria-hidden
+          >
             <FloatCard
               rotation="-8deg"
               delay="0s"
               className="absolute left-0 top-14 w-60 z-10"
             >
-              <div className="text-sm font-bold mb-3">New Creators</div>
-              <div className="flex -space-x-2 mb-3">
-                {["O", "R", "C", "A", "Z"].map((c, i) => (
-                  <span
-                    key={i}
-                    className="grid h-9 w-9 place-items-center rounded-full text-[11px] font-bold text-white ring-2 ring-white"
-                    style={{
-                      background: `hsl(${18 + i * 9} 95% ${52 + i * 3}%)`,
-                    }}
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-              <div className="text-xs text-muted-foreground font-medium">
-                {MARKETING.stats[1].value} creators earning this month
-              </div>
+              <NewCreatorsBody />
             </FloatCard>
-
             <FloatCard
               rotation="3deg"
               delay="0.9s"
               className="absolute right-24 top-0 w-64 z-20"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-bold">Campaigns</div>
-                <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-primary">
-                  LIVE
-                </span>
-              </div>
-              <div className="rounded-xl bg-muted/70 p-3">
-                <div className="text-xs font-semibold truncate">
-                  Fitness App Clipping
-                </div>
-                <div className="mt-2 h-1.5 rounded-full bg-border overflow-hidden">
-                  <div className="h-full w-[62%] rounded-full bg-primary" />
-                </div>
-                <div className="mt-2 flex justify-between text-[10px] font-semibold text-muted-foreground">
-                  <span>$15,600 / $25,000</span>
-                  <span className="text-primary">$1.80 / 1k</span>
-                </div>
-              </div>
+              <CampaignsBody />
             </FloatCard>
-
             <FloatCard
               rotation="8deg"
               delay="1.8s"
               className="absolute right-0 bottom-14 w-60 z-30"
             >
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                Available to pay out
-              </div>
-              <div className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight">
-                $2,140.00
-              </div>
-              <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-green-600">
-                <ShieldCheck className="h-3.5 w-3.5" /> Payout protection active
-              </div>
-              <div className="mt-3 rounded-full bg-foreground text-background text-center text-xs font-bold py-2.5">
-                Withdraw
-              </div>
+              <PayoutBody />
+            </FloatCard>
+          </div>
+        </div>
+
+        {/* Mobile app-card cluster — fanned composition */}
+        <div className="lg:hidden container max-w-7xl px-4 -mt-4 pb-6" aria-hidden>
+          <div
+            className="animate-fade-up relative mx-auto h-[340px] w-full max-w-[360px]"
+            style={{ animationDelay: "0.5s" }}
+          >
+            <FloatCard
+              rotation="-7deg"
+              delay="0s"
+              className="absolute left-0 top-0 w-[13.5rem] z-10"
+            >
+              <CampaignsBody />
+            </FloatCard>
+            <FloatCard
+              rotation="7deg"
+              delay="1s"
+              className="absolute right-0 top-16 w-[12.5rem] z-20"
+            >
+              <NewCreatorsBody />
+            </FloatCard>
+            <FloatCard
+              rotation="-2deg"
+              delay="2s"
+              className="absolute left-6 bottom-0 w-[14rem] z-30"
+            >
+              <PayoutBody />
             </FloatCard>
           </div>
         </div>
@@ -511,6 +514,108 @@ function FloatCard({
     >
       {children}
     </div>
+  );
+}
+
+/* Headline that reveals word-by-word with a blur-rise, orange shimmer on "payout" */
+
+function HeroHeadline() {
+  const lines = [
+    ["Turn", "every", "video"],
+    ["into", "a", "payout"],
+  ];
+  let wordIndex = 0;
+  return (
+    <h1 className="text-display text-[2.6rem] sm:text-6xl lg:text-[4.2rem]">
+      {lines.map((line, li) => (
+        <span key={li} className="block">
+          {line.map((word, wi) => {
+            const delay = 0.1 + wordIndex++ * 0.075;
+            return (
+              <React.Fragment key={word + li}>
+                <span
+                  className="animate-word-rise inline-block"
+                  style={{ animationDelay: `${delay}s` }}
+                >
+                  {word === "payout" ? (
+                    <span className="hero-gradient-text">{word}</span>
+                  ) : (
+                    word
+                  )}
+                </span>
+                {wi < line.length - 1 ? " " : null}
+              </React.Fragment>
+            );
+          })}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
+/* Hero app-card bodies — shared between the desktop stack and mobile cluster */
+
+function NewCreatorsBody() {
+  return (
+    <>
+      <div className="text-sm font-bold mb-3">New Creators</div>
+      <div className="flex -space-x-2 mb-3">
+        {["O", "R", "C", "A", "Z"].map((c, i) => (
+          <span
+            key={i}
+            className="grid h-9 w-9 place-items-center rounded-full text-[11px] font-bold text-white ring-2 ring-white"
+            style={{ background: `hsl(${18 + i * 9} 95% ${52 + i * 3}%)` }}
+          >
+            {c}
+          </span>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground font-medium">
+        {MARKETING.stats[1].value} creators earning this month
+      </div>
+    </>
+  );
+}
+
+function CampaignsBody() {
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-bold">Campaigns</div>
+        <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-primary">
+          LIVE
+        </span>
+      </div>
+      <div className="rounded-xl bg-muted/70 p-3">
+        <div className="text-xs font-semibold truncate">Fitness App Clipping</div>
+        <div className="mt-2 h-1.5 rounded-full bg-border overflow-hidden">
+          <div className="h-full w-[62%] rounded-full bg-primary" />
+        </div>
+        <div className="mt-2 flex justify-between text-[10px] font-semibold text-muted-foreground">
+          <span>$15,600 / $25,000</span>
+          <span className="text-primary">$1.80 / 1k</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PayoutBody() {
+  return (
+    <>
+      <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        Available to pay out
+      </div>
+      <div className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight">
+        $2,140.00
+      </div>
+      <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-green-600">
+        <ShieldCheck className="h-3.5 w-3.5" /> Payout protection active
+      </div>
+      <div className="mt-3 rounded-full bg-foreground text-background text-center text-xs font-bold py-2.5">
+        Withdraw
+      </div>
+    </>
   );
 }
 
